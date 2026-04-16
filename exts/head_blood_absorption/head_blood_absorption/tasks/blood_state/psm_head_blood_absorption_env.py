@@ -389,7 +389,7 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         )
 
         lift = Gf.Vec3f(0.0, 0.0, self.cfg.table_height_offset)
-        spawn_pos_tissue = self.cfg.spawn_pos_tissue + lift + Gf.Vec3f(0.0, 0.0, 0.039)
+        spawn_pos_tissue = self.cfg.spawn_pos_tissue + lift
         spawn_pos_fluid = self.cfg.spawn_pos_fluid + lift
         spawn_pos_glass2 = self.cfg.spawn_pos_glass2
 
