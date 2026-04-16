@@ -20,7 +20,7 @@ import gymnasium as gym
 from prettytable import PrettyTable
 
 # Import extensions to set up environment tasks
-import blood_absorption.tasks  # noqa: F401
+import head_blood_absorption.tasks  # noqa: F401
 
 
 def main():
@@ -38,7 +38,7 @@ def main():
     # acquire all Isaac environments names
     for task_spec in gym.registry.values():
         entry_point = str(task_spec.entry_point)
-        if task_spec.id.startswith("Isaac-") and entry_point.startswith("blood_absorption.tasks."):
+        if task_spec.id.startswith("Isaac-") and entry_point.startswith("head_blood_absorption.tasks."):
             # add details to table
             table.add_row([index + 1, task_spec.id, task_spec.entry_point, task_spec.kwargs["env_cfg_entry_point"]])
             # increment count

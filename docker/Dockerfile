@@ -13,7 +13,7 @@ COPY ../ ${DOCKER_ISAACLAB_EXTENSION_TEMPLATE_PATH}
 
 # # Install whatever you need as additional dependencies.
 RUN bash -i -c "source ${HOME}/.bashrc && \
-    cd ${DOCKER_ISAACLAB_EXTENSION_TEMPLATE_PATH}/exts/blood_absorption && \
+    cd ${DOCKER_ISAACLAB_EXTENSION_TEMPLATE_PATH}/exts/head_blood_absorption && \
     pip install -e ."
 
 # make working directory as the Isaac Lab directory

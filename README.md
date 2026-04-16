@@ -29,25 +29,25 @@ Based on the Isaac Lab [extension template](https://github.com/isaac-sim/IsaacLa
 git clone https://github.com/robegi/IsaacLabPouringExtension.git
 ```
 
-- To rename from `blood_absorption` to a custom name:
+- To rename from `head_blood_absorption` to a custom name:
 
 ```bash
 # Enter the repository
 cd IsaacLabExtensionTemplate
-# Rename all occurrences of blood_absorption (in files/directories) to your_fancy_extension_name
+# Rename all occurrences of head_blood_absorption (in files/directories) to your_fancy_extension_name
 python scripts/rename_template.py your_fancy_extension_name
 ```
 
 - Using a python interpreter that has Isaac Lab installed, install the library
 
 ```bash
-python -m pip install -e exts/blood_absorption
+python -m pip install -e exts/head_blood_absorption
 ```
 
 Now the extension can be executed from any Isaac Lab script by importing it:
 
 ```python
-import blood_absorption # Custom extension
+import head_blood_absorption # Custom extension
 ```
 
 **Example**: to execute skrl to train the model, use:

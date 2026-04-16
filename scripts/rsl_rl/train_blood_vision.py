@@ -57,8 +57,8 @@ from omni.isaac.lab_tasks.utils import get_checkpoint_path
 from omni.isaac.lab_tasks.utils.hydra import hydra_task_config
 from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import RslRlOnPolicyRunnerCfg
 
-import blood_absorption.tasks  # noqa: F401
-from blood_absorption.tasks.blood_vision.agents.rsl_rl_multimodal import (
+import head_blood_absorption.tasks  # noqa: F401
+from head_blood_absorption.tasks.blood_vision.agents.rsl_rl_multimodal import (
     BloodVisionActorCritic,
     BloodVisionRslRlVecEnvWrapper,
 )

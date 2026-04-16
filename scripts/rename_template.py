@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 
-TEMPLATE_NAME = "blood_absorption"
+TEMPLATE_NAME = "head_blood_absorption"
 EXCLUDE_DIRS = {".git", "__pycache__"}
 
 
