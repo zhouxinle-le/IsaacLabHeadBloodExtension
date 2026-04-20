@@ -54,7 +54,7 @@ class FluidObject:
         self._particle_paths[env_index] = self.particlesPath
 
         # solver iterations
-        self._solverPositionIterations = 16
+        self._solverPositionIterations = 4
         physxAPI = PhysxSchema.PhysxSceneAPI.Apply(
             self.stage.GetPrimAtPath(self.scenePath)
         )
