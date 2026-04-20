@@ -62,7 +62,7 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
 
     CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 
-    spawn_pos_tissue = Gf.Vec3f(0.0, 0.30, 0.0) + Gf.Vec3f(0.0, 0.0, 0.07)
+    spawn_pos_tissue = Gf.Vec3f(0.0, 0.35, 0.0) + Gf.Vec3f(0.0, 0.0, 0.07)
     spawn_pos_fluid = spawn_pos_tissue + Gf.Vec3f(0.035, -0.043, 0.073)
     spawn_pos_glass2 = Gf.Vec3f(0.0, 0.70, 0.01)
     glass2_particle_height = 0.03
@@ -83,6 +83,29 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     )
     table_pos = Gf.Vec3f(0.0, 0.0, 0.457)
     table_height_offset = 0.914
+    psm_init_pos = (0.0, -0.20, 0.0)
+    psm_base_block_size = (0.18, 0.38, 0.1)
+    psm_base_block_color = (0.32, 0.32, 0.32)
+
+    psm_base_block = RigidObjectCfg(
+        prim_path="/World/envs/env_.*/PSMBaseBlock",
+        init_state=RigidObjectCfg.InitialStateCfg(
+            pos=(psm_init_pos[0], psm_init_pos[1]-0.1, table_height_offset + 0.5 * psm_base_block_size[2]),
+            rot=[1, 0, 0, 0],
+        ),
+        spawn=sim_utils.CuboidCfg(
+            size=psm_base_block_size,
+            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                kinematic_enabled=True,
+                disable_gravity=True,
+            ),
+            collision_props=sim_utils.CollisionPropertiesCfg(),
+            visual_material=sim_utils.PreviewSurfaceCfg(
+                diffuse_color=psm_base_block_color,
+                roughness=0.9,
+            ),
+        ),
+    )
 
     glass2 = RigidObjectCfg(
         prim_path="/World/envs/env_.*/Glass2",
@@ -150,7 +173,7 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
                 "suction_tool_pitch_joint": 0.0,
                 "suction_tool_end_joint": 0.0,
             },
-            pos=(0.0, -0.20, 0.0),
+            pos=psm_init_pos,
         ),
         actuators={
             "psm": ImplicitActuatorCfg(
@@ -388,6 +411,9 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
             translation=self.cfg.table_pos,
         )
 
+        self._psm_base_block = RigidObject(self.cfg.psm_base_block)
+        self.scene.rigid_objects["psm_base_block"] = self._psm_base_block
+
         lift = Gf.Vec3f(0.0, 0.0, self.cfg.table_height_offset)
         spawn_pos_tissue = self.cfg.spawn_pos_tissue + lift
         spawn_pos_fluid = self.cfg.spawn_pos_fluid + lift
@@ -411,7 +437,7 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         self.scene.rigid_objects["glass2"] = self._glass2
 
         psm_pos = list(self.cfg.psm_robot.init_state.pos)
-        psm_pos[2] += self.cfg.table_height_offset
+        psm_pos[2] += self.cfg.table_height_offset + float(self.cfg.psm_base_block_size[2])
         self.cfg.psm_robot.init_state.pos = tuple(psm_pos)
         self._psm = Articulation(self.cfg.psm_robot)
         self.scene.articulations["psm"] = self._psm
