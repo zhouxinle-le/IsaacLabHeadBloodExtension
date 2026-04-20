@@ -9,6 +9,7 @@ import torch
 import carb.settings
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.core.prims import XFormPrimView
+from omni.isaac.core.utils.stage import get_current_stage
 from omni.isaac.lab.actuators.actuator_cfg import ImplicitActuatorCfg
 from omni.isaac.lab.assets import Articulation, ArticulationCfg, AssetBaseCfg, RigidObject, RigidObjectCfg
 from omni.isaac.lab.controllers import DifferentialIKController, DifferentialIKControllerCfg
@@ -23,7 +24,7 @@ from omni.isaac.lab.terrains import TerrainImporterCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.math import subtract_frame_transforms
 from omni.physx import acquire_physx_interface
-from pxr import Gf
+from pxr import Gf, PhysxSchema, Usd, UsdPhysics
 
 from .fluid_object import FluidObject, FluidObjectCfg
 from .suction import SuctionControllerNoTimer
@@ -62,16 +63,19 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
 
     CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 
-    spawn_pos_tissue = Gf.Vec3f(0.0, 0.30, 0.0)
-    spawn_pos_fluid = spawn_pos_tissue + Gf.Vec3f(0.0, 0.0, 0.05)
+    spawn_pos_tissue = Gf.Vec3f(0.0, 0.30, 0.0) + Gf.Vec3f(0.0, 0.0, 0.07)
+    spawn_pos_fluid = spawn_pos_tissue + Gf.Vec3f(0.035, -0.043, 0.073)
     spawn_pos_glass2 = Gf.Vec3f(0.0, 0.70, 0.01)
     glass2_particle_height = 0.03
+    tissue_container_sdf_resolution = 256
+    tissue_container_sdf_margin = 0.001
+    tissue_container_sdf_narrow_band_thickness = 0.01
 
     tissue = AssetBaseCfg(
         prim_path="/World/envs/env_.*/TissueSetup",
         init_state=AssetBaseCfg.InitialStateCfg(pos=spawn_pos_tissue, rot=[1, 0, 0, 0]),
         spawn=UsdFileCfg(
-            usd_path=f"{CURRENT_PATH}/usd_models/head_2.usd",
+            usd_path=f"{CURRENT_PATH}/usd_models/head_color.usd",
             scale=(1.0, 1.0, 1.0),
         ),
     )
@@ -116,9 +120,9 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     )
 
     liquidCfg = FluidObjectCfg()
-    liquidCfg.numParticlesX = 10
-    liquidCfg.numParticlesY = 10
-    liquidCfg.numParticlesZ = 3
+    liquidCfg.numParticlesX = 3
+    liquidCfg.numParticlesY = 3
+    liquidCfg.numParticlesZ = 10
     liquidCfg.density = 1060.0
     liquidCfg.particle_mass = 0.001
     liquidCfg.particleSpacing = 0.004
@@ -403,6 +407,7 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
             translation=self.cfg.tissue.init_state.pos,
             orientation=self.cfg.tissue.init_state.rot,
         )
+        self._configure_tissue_container_collision_mesh()
         self._tissue = XFormPrimView(self.cfg.tissue.prim_path, reset_xform_properties=False)
         self.scene.extras["tissue"] = self._tissue
 
@@ -425,6 +430,36 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
 
         light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
         light_cfg.func("/World/Light", light_cfg)
+
+    def _configure_tissue_container_collision_mesh(self) -> None:
+        stage = get_current_stage()
+        source_tissue_path = self.cfg.tissue.prim_path.replace(".*", "0")
+        source_tissue_prim = stage.GetPrimAtPath(source_tissue_path)
+        if not source_tissue_prim.IsValid():
+            return
+
+        for prim in Usd.PrimRange(source_tissue_prim):
+            if prim.GetTypeName() != "Mesh":
+                continue
+
+            path_str = prim.GetPath().pathString
+            if not path_str.endswith("/zhu/zhu"):
+                continue
+
+            collision_api = UsdPhysics.CollisionAPI.Apply(prim)
+            collision_api.CreateCollisionEnabledAttr().Set(True)
+
+            mesh_collision_api = UsdPhysics.MeshCollisionAPI.Apply(prim)
+            mesh_collision_api.CreateApproximationAttr().Set("sdf")
+
+            # For this thin-walled container, SDF collision is more robust than
+            # triangle-mesh or mesh-simplified collision near the bottom ring.
+            sdf_api = PhysxSchema.PhysxSDFMeshCollisionAPI.Apply(prim)
+            sdf_api.CreateSdfResolutionAttr().Set(int(self.cfg.tissue_container_sdf_resolution))
+            sdf_api.CreateSdfMarginAttr().Set(float(self.cfg.tissue_container_sdf_margin))
+            sdf_api.CreateSdfNarrowBandThicknessAttr().Set(
+                float(self.cfg.tissue_container_sdf_narrow_band_thickness)
+            )
 
     def _pre_physics_step(self, actions: torch.Tensor):
         if self._ee_jacobi_idx is None:

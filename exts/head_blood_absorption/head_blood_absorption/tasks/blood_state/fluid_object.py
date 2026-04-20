@@ -54,7 +54,7 @@ class FluidObject:
         self._particle_paths[env_index] = self.particlesPath
 
         # solver iterations
-        self._solverPositionIterations = 4
+        self._solverPositionIterations = 16
         physxAPI = PhysxSchema.PhysxSceneAPI.Apply(
             self.stage.GetPrimAtPath(self.scenePath)
         )
@@ -62,16 +62,18 @@ class FluidObject:
 
         # particle params
         restOffset = self.cfg.particleSpacing * 0.9
+        solidRestOffset = restOffset
         fluidRestOffset = restOffset * 0.6
-        particleContactOffset = restOffset + 0.001
+        particleContactOffset = max(solidRestOffset + 0.001, fluidRestOffset / 0.6)
+        contactOffset = restOffset + 0.001
         particle_system = particleUtils.add_physx_particle_system(
             stage=self.stage,
             particle_system_path=self.particleSystemPath,
             simulation_owner=self.scenePath,
-            contact_offset=restOffset * 1.1,
-            rest_offset=0.001,
+            contact_offset=contactOffset,
+            rest_offset=restOffset,
             particle_contact_offset=particleContactOffset,
-            solid_rest_offset=0.0,
+            solid_rest_offset=solidRestOffset,
             fluid_rest_offset=fluidRestOffset,
             solver_position_iterations=self._solverPositionIterations,
         )
