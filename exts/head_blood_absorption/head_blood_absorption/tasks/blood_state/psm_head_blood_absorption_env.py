@@ -6,6 +6,7 @@ import math
 import numpy as np
 import torch
 
+import carb
 import carb.settings
 import omni.isaac.lab.sim as sim_utils
 from omni.isaac.core.prims import XFormPrimView
@@ -139,14 +140,17 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     )
 
     liquidCfg = FluidObjectCfg()
-    liquidCfg.numParticlesX = 4
-    liquidCfg.numParticlesY = 4
-    liquidCfg.numParticlesZ = 12
+    liquidCfg.numParticlesX = 3
+    liquidCfg.numParticlesY = 3
+    liquidCfg.numParticlesZ = 28
     liquidCfg.density = 1060.0
     liquidCfg.particle_mass = 0.001
     liquidCfg.particleSpacing = 0.004
     liquidCfg.viscosity = 3.5
     blood_init_pos_list = ("particle_init_pos_low", "particle_init_pos_mid", "particle_init_pos_high")
+    save_blood_init_template_enabled = False
+    save_blood_init_template_name = "particle_init_pos_low"      # high 28, mid 21, low 15
+    save_blood_init_template_after_steps = 240
 
     psm_robot = ArticulationCfg(
         prim_path="/World/envs/env_.*/PSM",
@@ -218,7 +222,7 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     psm_tip_local_axis = (0.0, -1.0, 0.0)
     tip_contact_force_threshold = 0.5
     height_axis = 2
-    height_limit = 0.90
+    height_limit = 0.94
     suction_cone_half_angle_deg = 60.0
     suction_cone_range = 0.07
     suction_force_scale = 0.02
@@ -253,6 +257,9 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
     def __init__(self, cfg: PsmBloodAbsorptionEnvCfg, render_mode: str | None = None, **kwargs):
         self._tip_contact_sensor = None
         self._ee_jacobi_idx: int | None = None
+        self._capture_blood_template_enabled = bool(cfg.save_blood_init_template_enabled)
+        self._blood_template_capture_saved = False
+        self._capture_blood_reset_state: tuple[np.ndarray, np.ndarray] | None = None
         super().__init__(cfg, render_mode, **kwargs)
 
         self._init_scene_runtime_state()
@@ -372,6 +379,45 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         self._workspace_low_w[:] = self.scene.env_origins + self._workspace_local_low.unsqueeze(0)
         self._workspace_high_w[:] = self.scene.env_origins + self._workspace_local_high.unsqueeze(0)
 
+    def _get_blood_template_capture_path(self) -> str:
+        template_name = str(self.cfg.save_blood_init_template_name)
+        if not template_name.endswith(".pt"):
+            template_name = f"{template_name}.pt"
+        return os.path.join(self.cfg.CURRENT_PATH, "usd_models", template_name)
+
+    def _maybe_save_blood_template(self) -> None:
+        if not self._capture_blood_template_enabled or self._blood_template_capture_saved:
+            return
+
+        settle_steps = max(int(self.cfg.save_blood_init_template_after_steps), 0)
+        if int(self._step_count[0].item()) < settle_steps:
+            return
+
+        particles_pos, _ = self.liquid.read_particles(0)
+        if len(particles_pos) <= 0:
+            raise RuntimeError("Cannot save blood template because env_0 has no particles.")
+
+        save_path = self._get_blood_template_capture_path()
+        torch.save(torch.tensor(np.asarray(particles_pos, dtype=np.float32)), save_path)
+        self._blood_template_capture_saved = True
+        message = (
+            f"Saved blood template with {len(particles_pos)} particles to '{save_path}' "
+            f"after {int(self._step_count[0].item())} control steps."
+        )
+        print(f"[INFO] {message}", flush=True)
+        carb.log_info(message)
+
+    def _initialize_blood_reset_source(self) -> None:
+        if self._capture_blood_template_enabled:
+            particles_pos, particles_vel = self.liquid.read_particles(0)
+            self._capture_blood_reset_state = (
+                np.asarray(particles_pos, dtype=np.float32).copy(),
+                np.asarray(particles_vel, dtype=np.float32).copy(),
+            )
+            return
+
+        self._load_blood_init_templates()
+
     def _load_blood_init_templates(self) -> None:
         template_names = tuple(self.cfg.blood_init_pos_list)
         if len(template_names) <= 0:
@@ -435,6 +481,18 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         env_id_list = env_ids.detach().cpu().tolist()
         self._tissue.set_world_poses(tissue_positions, tissue_orientations, env_id_list)
 
+        if self._capture_blood_template_enabled:
+            if self._capture_blood_reset_state is None:
+                raise RuntimeError("Blood template capture mode is enabled but no capture reset state is available.")
+
+            reset_pos, reset_vel = self._capture_blood_reset_state
+            self.liquid.reset_particles(env_id_list, reset_pos, reset_vel)
+            particle_count = float(reset_pos.shape[0])
+            self._initial_particle_count[env_ids] = particle_count
+            self._success_threshold[env_ids] = particle_count * float(self.cfg.blood_success_ratio)
+            self._blood_template_index[env_ids] = -1
+            return
+
         num_templates = len(self._blood_init_pos_list)
         if num_templates <= 0:
             raise RuntimeError("No blood templates are loaded for blood_state resets.")
@@ -491,7 +549,7 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
 
         self.liquid = FluidObject(cfg=self.cfg.liquidCfg, lower_pos=spawn_pos_fluid)
         self.liquid.spawn_fluid_direct()
-        self._load_blood_init_templates()
+        self._initialize_blood_reset_source()
 
         self.cfg.tissue.init_state.pos = spawn_pos_tissue
         self.cfg.tissue.spawn.func(
@@ -526,6 +584,14 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
     def _pre_physics_step(self, actions: torch.Tensor):
         if self._ee_jacobi_idx is None:
             self._resolve_ik_handles()
+
+        if self._capture_blood_template_enabled:
+            self._raw_actions.zero_()
+            tip_pos_w, _ = self._compute_tip_pose_and_direction_w()
+            self._ee_goal_pos_w[:] = tip_pos_w
+            self._joint_pos_des[:] = self._psm.data.default_joint_pos[:, self._ik_joint_ids]
+            self._set_task_state_dirty()
+            return
 
         self._raw_actions[:] = torch.clamp(actions, -1.0, 1.0)
         delta_pos = self._raw_actions * float(self.cfg.action_scale_lin)
@@ -653,7 +719,10 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         env_origins_np = self.scene.env_origins.detach().cpu().numpy()
         tip_pos_local_np = (tip_pos_w - self.scene.env_origins).detach().cpu().numpy()
         tip_dir_w_np = tip_dir_w.detach().cpu().numpy()
-        apply_suction_mask_np = (self._step_count > 0).detach().cpu().numpy()
+        if self._capture_blood_template_enabled:
+            apply_suction_mask_np = np.zeros((self.num_envs,), dtype=bool)
+        else:
+            apply_suction_mask_np = (self._step_count > 0).detach().cpu().numpy()
         glass2_pos_np = (self._glass2.data.root_pos_w - self.scene.env_origins).detach().cpu().numpy()
 
         # 一步运算，拿到吸血结果和当前统计指标
@@ -768,6 +837,18 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         if not self._done_cache_dirty:
+            return self._terminated_cache.clone(), self._truncated_cache.clone()
+
+        if self._capture_blood_template_enabled:
+            self._refresh_post_step_task_state()
+            self._severe_contact_counter.zero_()
+            self._episode_success[:] = False
+            self._episode_joint_limit[:] = False
+            self._episode_severe_collision[:] = False
+            self._episode_time_out[:] = False
+            self._terminated_cache[:] = False
+            self._truncated_cache[:] = False
+            self._done_cache_dirty = False
             return self._terminated_cache.clone(), self._truncated_cache.clone()
 
         self._refresh_post_step_task_state()
@@ -931,6 +1012,8 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
             | self._episode_time_out[env_ids]
         )
         self._flush_episode_logs(env_ids[finished_mask])
+        if self._capture_blood_template_enabled:
+            self._blood_template_capture_saved = False
 
         root_state = self._psm.data.default_root_state[env_ids].clone()
         root_state[:, :3] += self.scene.env_origins[env_ids]
@@ -969,6 +1052,7 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
             self._update_low_dim_observation()
 
             self._step_count += 1
+            self._maybe_save_blood_template()
             self._observation_pending = False
 
         return {"policy": self._obs_state.clone()}
