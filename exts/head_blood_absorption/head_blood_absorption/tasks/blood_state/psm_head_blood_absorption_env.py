@@ -62,8 +62,8 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
 
     CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 
-    spawn_pos_tissue = Gf.Vec3f(0.0, 0.35, 0.0) + Gf.Vec3f(0.0, 0.0, 0.07)
-    spawn_pos_fluid = spawn_pos_tissue + Gf.Vec3f(0.035, -0.043, 0.073)
+    spawn_pos_tissue = Gf.Vec3f(0.0, 0.35, 0.0) + Gf.Vec3f(0.0, 0.0, 0.08)
+    spawn_pos_fluid = spawn_pos_tissue + Gf.Vec3f(0.041581, -0.053046, 0.088006)
     spawn_pos_glass2 = Gf.Vec3f(0.0, 0.70, 0.01)
     glass2_particle_height = 0.03
 
@@ -71,7 +71,7 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
         prim_path="/World/envs/env_.*/TissueSetup",
         init_state=AssetBaseCfg.InitialStateCfg(pos=spawn_pos_tissue, rot=[1, 0, 0, 0]),
         spawn=UsdFileCfg(
-            usd_path=f"{CURRENT_PATH}/usd_models/head_color.usd",
+            usd_path=f"{CURRENT_PATH}/usd_models/head_color_1.2.usd",
             scale=(1.0, 1.0, 1.0),
         ),
     )
@@ -139,9 +139,9 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     )
 
     liquidCfg = FluidObjectCfg()
-    liquidCfg.numParticlesX = 3
-    liquidCfg.numParticlesY = 3
-    liquidCfg.numParticlesZ = 20
+    liquidCfg.numParticlesX = 4
+    liquidCfg.numParticlesY = 4
+    liquidCfg.numParticlesZ = 12
     liquidCfg.density = 1060.0
     liquidCfg.particle_mass = 0.001
     liquidCfg.particleSpacing = 0.004
