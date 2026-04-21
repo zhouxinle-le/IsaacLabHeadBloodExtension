@@ -85,8 +85,8 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     )
     table_pos = Gf.Vec3f(0.0, 0.0, 0.457)
     table_height_offset = 0.914
-    psm_init_pos = (0.0, -0.20, 0.0)
-    psm_base_block_size = (0.18, 0.38, 0.15)
+    psm_init_pos = (0.0, -0.22, 0.0)
+    psm_base_block_size = (0.18, 0.38, 0.08)
     psm_base_block_color = (0.32, 0.32, 0.32)
 
     psm_base_block = RigidObjectCfg(
@@ -150,7 +150,7 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     liquidCfg.viscosity = 3.5
     blood_init_pos_list = ("particle_init_pos_low", "particle_init_pos_mid", "particle_init_pos_high")
     save_blood_init_template_enabled = False
-    save_blood_init_template_name = "particle_init_pos_low"      # high 28, mid 21, low 15
+    save_blood_init_template_name = "particle_init_pos_00"      # high 28, mid 21, low 15
     save_blood_init_template_after_steps = 240
 
     psm_robot = ArticulationCfg(
@@ -174,7 +174,7 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
                 "psm_yaw_joint": 0.0,
                 "psm_pitch_back_joint": 0.0,
                 "psm_pitch_bottom_joint": 0.0,
-                "psm_pitch_end_joint": 0.0,
+                "psm_pitch_end_joint": -0.25,
                 "psm_main_insertion_joint": 0.07,
                 "suction_tool_pitch_joint": 0.0,
                 "suction_tool_end_joint": 0.0,
@@ -204,13 +204,14 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     ik_joint_names = (
         # "psm_rev_joint",
         "psm_yaw_joint",
+        "psm_pitch_bottom_joint",
         "psm_pitch_end_joint",
         "psm_main_insertion_joint",
     )
     tool_joint_names = (
         "psm_rev_joint",
         "psm_pitch_back_joint",
-        "psm_pitch_bottom_joint",
+        # "psm_pitch_bottom_joint",
         "suction_tool_pitch_joint",
         "suction_tool_end_joint",
     )
@@ -230,7 +231,7 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     suction_force_scale = 0.02
     suction_epsilon = 1e-6
     inlet_radius = 0.008  # 0.008
-    inlet_depth = 0.012
+    inlet_depth = 0.006
     use_body_quat_for_tip_dir = True
     outflow_speed = 0.02
     max_particle_speed = 0.4
