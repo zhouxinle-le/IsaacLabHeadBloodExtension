@@ -146,6 +146,7 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     liquidCfg.particle_mass = 0.001
     liquidCfg.particleSpacing = 0.004
     liquidCfg.viscosity = 3.5
+    blood_init_pos_list = ("particle_init_pos_low", "particle_init_pos_mid", "particle_init_pos_high")
 
     psm_robot = ArticulationCfg(
         prim_path="/World/envs/env_.*/PSM",
@@ -240,6 +241,7 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     severe_contact_patience = 2
 
     success_absorption_ratio = 0.96
+    blood_success_ratio = success_absorption_ratio
     joint_limit_termination_tolerance = 1e-3
 
 
@@ -294,10 +296,17 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
     def _init_robot_control_state(self) -> None:
         self._raw_actions = torch.zeros((self.num_envs, self.cfg.action_space), dtype=torch.float32, device=self.device)
 
-        self._expected_particle_count = float(
+        self._max_particle_count = float(
             self.cfg.liquidCfg.numParticlesX * self.cfg.liquidCfg.numParticlesY * self.cfg.liquidCfg.numParticlesZ
         )
-        self._success_threshold = self._expected_particle_count * float(self.cfg.success_absorption_ratio)
+        self._initial_particle_count = torch.full(
+            (self.num_envs,),
+            self._max_particle_count,
+            dtype=torch.float32,
+            device=self.device,
+        )
+        self._success_threshold = self._initial_particle_count * float(self.cfg.blood_success_ratio)
+        self._blood_template_index = torch.full((self.num_envs,), -1, dtype=torch.long, device=self.device)
 
         self._joint_lower_limits = self._psm.data.soft_joint_pos_limits[0, :, 0].to(device=self.device)
         self._joint_upper_limits = self._psm.data.soft_joint_pos_limits[0, :, 1].to(device=self.device)
@@ -363,6 +372,54 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         self._workspace_low_w[:] = self.scene.env_origins + self._workspace_local_low.unsqueeze(0)
         self._workspace_high_w[:] = self.scene.env_origins + self._workspace_local_high.unsqueeze(0)
 
+    def _load_blood_init_templates(self) -> None:
+        template_names = tuple(self.cfg.blood_init_pos_list)
+        if len(template_names) <= 0:
+            raise ValueError("blood_init_pos_list must contain at least one blood template name.")
+
+        max_particle_capacity = int(
+            self.cfg.liquidCfg.numParticlesX * self.cfg.liquidCfg.numParticlesY * self.cfg.liquidCfg.numParticlesZ
+        )
+        blood_init_pos_list: list[np.ndarray] = []
+        blood_init_vel_list: list[np.ndarray] = []
+        blood_init_counts: list[int] = []
+
+        for template_name in template_names:
+            template_path = os.path.join(self.cfg.CURRENT_PATH, "usd_models", f"{template_name}.pt")
+            if not os.path.isfile(template_path):
+                raise FileNotFoundError(f"Blood template file not found: {template_path}")
+
+            try:
+                template = torch.load(template_path, map_location="cpu", weights_only=True)
+            except TypeError:
+                template = torch.load(template_path, map_location="cpu")
+            if isinstance(template, torch.Tensor):
+                positions = template.detach().cpu().numpy()
+            else:
+                positions = np.asarray(template)
+
+            positions = np.asarray(positions, dtype=np.float32)
+            if positions.ndim != 2 or positions.shape[1] != 3:
+                raise ValueError(
+                    f"Blood template '{template_name}' must have shape (N, 3), but got {positions.shape}."
+                )
+            if positions.shape[0] <= 0:
+                raise ValueError(f"Blood template '{template_name}' must contain at least one particle.")
+            if positions.shape[0] > max_particle_capacity:
+                raise ValueError(
+                    f"Blood template '{template_name}' has {positions.shape[0]} particles, "
+                    f"which exceeds the configured capacity of {max_particle_capacity}."
+                )
+
+            velocities = np.zeros_like(positions, dtype=np.float32)
+            blood_init_pos_list.append(positions.copy())
+            blood_init_vel_list.append(velocities)
+            blood_init_counts.append(int(positions.shape[0]))
+
+        self._blood_init_pos_list = blood_init_pos_list
+        self._blood_init_vel_list = blood_init_vel_list
+        self._blood_init_counts = tuple(blood_init_counts)
+
     def _reset_tissue_and_blood(self, env_ids: torch.Tensor) -> None:
         env_count = int(env_ids.numel())
         if env_count <= 0:
@@ -378,12 +435,25 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         env_id_list = env_ids.detach().cpu().tolist()
         self._tissue.set_world_poses(tissue_positions, tissue_orientations, env_id_list)
 
-        initial_state = self.liquid.get_initial_state()
-        if initial_state is None:
-            return
+        num_templates = len(self._blood_init_pos_list)
+        if num_templates <= 0:
+            raise RuntimeError("No blood templates are loaded for blood_state resets.")
 
-        initial_particles_pos, initial_particles_vel = initial_state
-        self.liquid.reset_particles(env_id_list, initial_particles_pos, initial_particles_vel)
+        sampled_template_indices = torch.randint(0, num_templates, (env_count,), device=self.device)
+        sampled_particle_counts = torch.empty((env_count,), dtype=torch.float32, device=self.device)
+
+        for local_idx, env_id in enumerate(env_id_list):
+            template_idx = int(sampled_template_indices[local_idx].item())
+            self.liquid.set_particles_position(
+                self._blood_init_pos_list[template_idx],
+                self._blood_init_vel_list[template_idx],
+                env_id,
+            )
+            sampled_particle_counts[local_idx] = float(self._blood_init_counts[template_idx])
+
+        self._initial_particle_count[env_ids] = sampled_particle_counts
+        self._success_threshold[env_ids] = sampled_particle_counts * float(self.cfg.blood_success_ratio)
+        self._blood_template_index[env_ids] = sampled_template_indices
 
     def _set_task_state_dirty(self) -> None:
         self._task_state_dirty = True
@@ -421,6 +491,7 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
 
         self.liquid = FluidObject(cfg=self.cfg.liquidCfg, lower_pos=spawn_pos_fluid)
         self.liquid.spawn_fluid_direct()
+        self._load_blood_init_templates()
 
         self.cfg.tissue.init_state.pos = spawn_pos_tissue
         self.cfg.tissue.spawn.func(
@@ -620,7 +691,11 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         goal_error_normalized = torch.clamp(2.0 * (self._ee_goal_pos_w - tip_pos_w) / workspace_range, -1.0, 1.0)
         blood_centroid_rel_normalized = torch.tanh((task_state.blood_centroid - tip_pos_w) / workspace_range)
 
-        absorbed_ratio = torch.clamp(task_state.absorbed_count / self._expected_particle_count, min=0.0, max=1.0).unsqueeze(1)
+        absorbed_ratio = torch.clamp(
+            task_state.absorbed_count / self._initial_particle_count.clamp_min(1.0),
+            min=0.0,
+            max=1.0,
+        ).unsqueeze(1)
         absorbed_delta_ema = torch.tanh(task_state.absorbed_delta_ema).unsqueeze(1)
         valid_in_cone_ratio = torch.clamp(task_state.valid_in_cone_ratio, min=0.0, max=1.0).unsqueeze(1)
         valid_in_inlet_ratio = torch.clamp(task_state.valid_in_inlet_ratio, min=0.0, max=1.0).unsqueeze(1)
@@ -711,8 +786,9 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
 
     def _compute_reward_terms(self, reward_inputs: ParticleRewardInputs) -> dict[str, torch.Tensor]:
         task_state = self._particle_state
-        
-        absorbed_frac_delta = task_state.absorbed_delta / self._success_threshold
+
+        success_threshold = self._success_threshold.clamp_min(1.0)
+        absorbed_frac_delta = task_state.absorbed_delta / success_threshold
         absorb_reward = self.cfg.reward_absorb_weight * absorbed_frac_delta
 
         centroid_progress = torch.clamp(
@@ -782,7 +858,15 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         self.extras["log"] = {
             "Metrics/absorbed_count": task_state.absorbed_count.mean(),
             "Metrics/absorbed_delta": task_state.absorbed_delta.mean(),
+            "Metrics/absorbed_ratio_mean": torch.clamp(
+                task_state.absorbed_count / self._initial_particle_count.clamp_min(1.0),
+                min=0.0,
+                max=1.0,
+            ).mean(),
             "Metrics/blood_centroid_distance": task_state.blood_centroid_distance.mean(),
+            "Metrics/initial_particle_count": self._initial_particle_count.mean(),
+            "Metrics/success_threshold": self._success_threshold.mean(),
+            "Metrics/blood_template_index": self._blood_template_index.to(dtype=torch.float32).mean(),
             "Metrics/valid_in_cone_ratio": task_state.valid_in_cone_ratio.mean(),
             "Metrics/valid_in_inlet_ratio": task_state.valid_in_inlet_ratio.mean(),
             "Metrics/absorbed_delta_ema": task_state.absorbed_delta_ema.mean(),
@@ -848,11 +932,6 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         )
         self._flush_episode_logs(env_ids[finished_mask])
 
-        if not self.liquid.has_initial_state:
-            particles_pos, _ = self.liquid.read_particles(0)
-            if len(particles_pos) > 0:
-                self.liquid.capture_initial_state(env_id=0)
-
         root_state = self._psm.data.default_root_state[env_ids].clone()
         root_state[:, :3] += self.scene.env_origins[env_ids]
         self._psm.write_root_pose_to_sim(root_state[:, :7], env_ids=env_ids)
@@ -888,11 +967,6 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
     def _get_observations(self) -> dict:
         if self._observation_pending:
             self._update_low_dim_observation()
-
-            if not self.liquid.has_initial_state:
-                particles_pos, _ = self.liquid.read_particles(0)
-                if len(particles_pos) > 0:
-                    self.liquid.capture_initial_state(env_id=0)
 
             self._step_count += 1
             self._observation_pending = False
