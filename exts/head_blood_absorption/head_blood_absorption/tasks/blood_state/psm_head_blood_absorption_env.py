@@ -4,6 +4,7 @@ import os
 
 import math
 import numpy as np
+import re
 import torch
 
 import carb
@@ -40,7 +41,7 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     observation_space = 18
 
     sim: SimulationCfg = SimulationCfg(
-        dt=1 / 240,
+        dt=1 / 300,
         render_interval=2,
         disable_contact_processing=False,
         physics_material=sim_utils.RigidBodyMaterialCfg(
@@ -63,7 +64,7 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
 
     CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 
-    spawn_pos_tissue = Gf.Vec3f(0.0, 0.35, 0.0) + Gf.Vec3f(0.0, 0.0, 0.08)
+    spawn_pos_tissue = Gf.Vec3f(0.0, 0.37, 0.0) + Gf.Vec3f(0.0, 0.0, 0.08) + Gf.Vec3f(-0.041581, 0.0, 0.0)
     spawn_pos_fluid = spawn_pos_tissue + Gf.Vec3f(0.041581, -0.053046, 0.088006)
     spawn_pos_glass2 = Gf.Vec3f(0.0, 0.70, 0.01)
     glass2_particle_height = 0.03
@@ -85,7 +86,7 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     table_pos = Gf.Vec3f(0.0, 0.0, 0.457)
     table_height_offset = 0.914
     psm_init_pos = (0.0, -0.20, 0.0)
-    psm_base_block_size = (0.18, 0.38, 0.1)
+    psm_base_block_size = (0.18, 0.38, 0.15)
     psm_base_block_color = (0.32, 0.32, 0.32)
 
     psm_base_block = RigidObjectCfg(
@@ -218,6 +219,7 @@ class PsmBloodAbsorptionEnvCfg(DirectRLEnvCfg):
     workspace_high_offset = (0.20, 0.20, 0.30)
 
     psm_tip_body_name = "suction_tool_end_link"
+    psm_collision_body_names_expr = "(psm_pitch_end_link|psm_main_insertion_link|suction_tool_pitch_link|suction_tool_end_link)"
     psm_tip_local_offset = (0.0, -0.011957148076033514, 0.0)
     psm_tip_local_axis = (0.0, -1.0, 0.0)
     tip_contact_force_threshold = 0.5
@@ -256,6 +258,8 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
 
     def __init__(self, cfg: PsmBloodAbsorptionEnvCfg, render_mode: str | None = None, **kwargs):
         self._tip_contact_sensor = None
+        self._psm_contact_sensors: dict[str, ContactSensor] = {}
+        self._psm_collision_body_names: list[str] = []
         self._ee_jacobi_idx: int | None = None
         self._capture_blood_template_enabled = bool(cfg.save_blood_init_template_enabled)
         self._blood_template_capture_saved = False
@@ -329,7 +333,8 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
 
         self._psm_body_name_to_idx, self._psm_body_name_to_path = self._build_psm_body_lookup()
         self._tip_body_idx = self._resolve_required_body_idx(self.cfg.psm_tip_body_name)
-        self._register_tip_contact_sensor()
+        self._resolve_psm_collision_body_selection()
+        self._register_psm_contact_sensors()
         self._tip_local_offset = torch.tensor(self.cfg.psm_tip_local_offset, dtype=torch.float32, device=self.device)
         self._tip_local_axis = torch.tensor(self.cfg.psm_tip_local_axis, dtype=torch.float32, device=self.device)
         self._tip_local_axis = self._tip_local_axis / torch.linalg.vector_norm(self._tip_local_axis).clamp_min(1.0e-9)
@@ -632,7 +637,7 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         self._psm.set_joint_position_target(self._joint_pos_des, joint_ids=self._ik_joint_ids)
         self._psm.set_joint_position_target(tool_targets, joint_ids=self._tool_joint_ids)
 
-    def _register_tip_contact_sensor(self) -> None:
+    def _register_psm_contact_sensors(self) -> None:
         tip_body_path = self._psm_body_name_to_path.get(self.cfg.psm_tip_body_name)
         tip_contact_cfg = ContactSensorCfg(
             prim_path=tip_body_path,
@@ -644,8 +649,43 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         )
         self._tip_contact_sensor = ContactSensor(cfg=tip_contact_cfg)
         self.scene.sensors["tip_contact"] = self._tip_contact_sensor
+
+        self._psm_contact_sensors = {}
+        for body_name in self._psm_collision_body_names:
+            body_path = self._psm_body_name_to_path.get(body_name)
+            if body_path is None:
+                raise RuntimeError(f"Failed to resolve collision sensor path for PSM body '{body_name}'.")
+            sensor_name = f"psm_contact_{body_name}"
+            psm_contact_cfg = ContactSensorCfg(
+                prim_path=body_path,
+                update_period=0.0,
+                history_length=1,
+                force_threshold=float(self.cfg.severe_contact_force_threshold),
+                debug_vis=False,
+            )
+            sensor = ContactSensor(cfg=psm_contact_cfg)
+            self._psm_contact_sensors[body_name] = sensor
+            self.scene.sensors[sensor_name] = sensor
+
         if self.sim.is_playing():
             self._tip_contact_sensor._initialize_callback(None)
+            for sensor in self._psm_contact_sensors.values():
+                sensor._initialize_callback(None)
+
+    def _resolve_psm_collision_body_selection(self) -> None:
+        pattern = re.compile(self.cfg.psm_collision_body_names_expr)
+        body_names = [name for name in self._psm.body_names if pattern.fullmatch(name)]
+        if len(body_names) == 0:
+            available = ", ".join(self._psm.body_names)
+            raise RuntimeError(
+                "Failed to match any PSM collision bodies with pattern "
+                f"'{self.cfg.psm_collision_body_names_expr}'. Available bodies: {available}"
+            )
+        self._psm_collision_body_names = body_names
+        carb.log_info(
+            "PSM severe collision monitoring bodies: "
+            + ", ".join(self._psm_collision_body_names)
+        )
 
     def _get_tip_contact_force(self) -> torch.Tensor:
         if self._tip_contact_sensor is None:
@@ -656,6 +696,20 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         if contact_force.ndim > 1:
             contact_force = torch.amax(contact_force, dim=1)
         return contact_force.to(dtype=torch.float32)
+
+    def _get_psm_contact_force(self) -> torch.Tensor:
+        if len(self._psm_contact_sensors) == 0:
+            return torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
+
+        per_body_contact_force = []
+        for sensor in self._psm_contact_sensors.values():
+            net_forces_w = sensor.data.net_forces_w
+            contact_force = torch.linalg.vector_norm(net_forces_w, dim=-1)
+            if contact_force.ndim > 1:
+                contact_force = torch.amax(contact_force, dim=1)
+            per_body_contact_force.append(contact_force.to(dtype=torch.float32))
+
+        return torch.amax(torch.stack(per_body_contact_force, dim=0), dim=0)
 
     def _build_psm_body_lookup(self) -> tuple[dict[str, int], dict[str, str]]:
         env_zero_ns = self.scene.env_regex_ns.replace(".*", "0")
@@ -801,8 +855,8 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         tip_pos_w, tip_dir_w = self._compute_tip_pose_and_direction_w()
         reset_goal_mask = self._step_count <= 0
         self._ee_goal_pos_w[reset_goal_mask] = tip_pos_w[reset_goal_mask]
-        contact_force = self._get_tip_contact_force()
-        self._obs_state[:] = self._build_observation_from_task_state(tip_pos_w, tip_dir_w, contact_force)
+        tip_contact_force = self._get_tip_contact_force()
+        self._obs_state[:] = self._build_observation_from_task_state(tip_pos_w, tip_dir_w, tip_contact_force)
 
     def _compute_termination_flags(
         self, contact_force: torch.Tensor
@@ -853,8 +907,8 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
 
         self._refresh_post_step_task_state()
 
-        contact_force = self._get_tip_contact_force()
-        terminated, truncated, next_counter, flags = self._compute_termination_flags(contact_force)
+        psm_contact_force = self._get_psm_contact_force()
+        terminated, truncated, next_counter, flags = self._compute_termination_flags(psm_contact_force)
         self._severe_contact_counter[:] = next_counter
         self._episode_success[:] = flags["success"]
         self._episode_joint_limit[:] = flags["joint_limit"]
@@ -921,6 +975,7 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
         self._refresh_post_step_task_state()
 
         raw_contact_force = self._get_tip_contact_force()
+        psm_contact_force = self._get_psm_contact_force()
         reward_terms = self._compute_reward_terms(
             ParticleRewardInputs(
                 raw_actions=self._raw_actions,
@@ -953,6 +1008,8 @@ class PsmBloodAbsorptionEnv(DirectRLEnv):
             "Metrics/absorbed_delta_ema": task_state.absorbed_delta_ema.mean(),
             "Metrics/raw_contact_force_mean": raw_contact_force.mean(),
             "Metrics/raw_contact_force_max": raw_contact_force.max(),
+            "Metrics/psm_contact_force_mean": psm_contact_force.mean(),
+            "Metrics/psm_contact_force_max": psm_contact_force.max(),
             "Metrics/success_rate": (task_state.absorbed_count >= self._success_threshold).float().mean(),
         }
 
