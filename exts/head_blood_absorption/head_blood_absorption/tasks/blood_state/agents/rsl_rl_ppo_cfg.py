@@ -15,7 +15,7 @@ from omni.isaac.lab_tasks.utils.wrappers.rsl_rl import (
 @configclass
 class PsmBloodAbsorptionPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 32
-    max_iterations = 6500
+    max_iterations = 50000
     save_interval = 100
     experiment_name = "psm_blood_state_direct"
     empirical_normalization = True
