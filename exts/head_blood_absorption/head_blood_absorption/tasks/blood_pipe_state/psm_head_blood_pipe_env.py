@@ -65,7 +65,8 @@ class PsmBloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
 
     CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 
-    spawn_pos_pipe = Gf.Vec3f(0.0, 0.37, 0.0) + Gf.Vec3f(0.0, 0.0, 0.08) + Gf.Vec3f(-0.041581, 0.0, 0.0)
+    # spawn_pos_pipe = Gf.Vec3f(0.0, 0.37, 0.0) + Gf.Vec3f(0.0, 0.0, 0.08) + Gf.Vec3f(-0.041581, 0.0, 0.0)
+    spawn_pos_pipe = Gf.Vec3f(0.0, 0.37, 0.0) + Gf.Vec3f(0.0, 0.0, 0.09) + Gf.Vec3f(-0.039522, 0.0, 0.0)
     pipe_link_local_pos = (0.027805, 0.033187, 0.022133)
     pipe_link_local_quat = (0.98480737, 0.0, 0.17365022, 0.0)
     pipe_axis_local = (0.0, 0.0, 1.0)
@@ -81,7 +82,7 @@ class PsmBloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     pipe_violation_termination_margin = 0.001
     pipe_wall_clearance_penalty_weight = 0.05
     pipe_violation_penalty = 10.0
-    spawn_pos_fluid = spawn_pos_pipe + Gf.Vec3f(0.027805, 0.033187, 0.034)
+    spawn_pos_fluid = spawn_pos_pipe + Gf.Vec3f(0.039522, -0.052623, 0.07751)
     spawn_pos_glass2 = Gf.Vec3f(0.0, 0.70, 0.01)
     glass2_particle_height = 0.03
 
@@ -89,7 +90,7 @@ class PsmBloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
         prim_path="/World/envs/env_.*/HeadPipe",
         init_state=AssetBaseCfg.InitialStateCfg(pos=spawn_pos_pipe, rot=[1, 0, 0, 0]),
         spawn=UsdFileCfg(
-            usd_path=f"{CURRENT_PATH}/usd_models/head_pipe.usd",
+            usd_path=f"{CURRENT_PATH}/usd_models/head_pipe_1_2.usd",
             scale=(1.0, 1.0, 1.0),
             collision_props=sim_utils.CollisionPropertiesCfg(),
         ),
@@ -102,7 +103,7 @@ class PsmBloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     )
     table_pos = Gf.Vec3f(0.0, 0.0, 0.457)
     table_height_offset = 0.914
-    psm_init_pos = (0.0, -0.24, 0.0)
+    psm_init_pos = (0.0, -0.34, 0.0)
     psm_base_block_size = (0.18, 0.38, 0.08)
     psm_base_block_color = (0.32, 0.32, 0.32)
 
@@ -167,7 +168,7 @@ class PsmBloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     liquidCfg.viscosity = 3.5
     blood_init_pos_list = ()
     save_blood_init_template_enabled = False
-    save_blood_init_template_name = "pipe_particle_init_pos_00"
+    save_blood_init_template_name = "pipe_particle_init_pos_28"
     save_blood_init_template_after_steps = 240
 
     psm_robot = ArticulationCfg(
@@ -235,8 +236,6 @@ class PsmBloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     action_scale_lin = 0.001
     pipe_action_scale_radial = 0.0008
     pipe_action_scale_axial = 0.0012
-    workspace_low_offset = (-0.20, -0.20, -0.02)
-    workspace_high_offset = (0.20, 0.20, 0.30)
 
     psm_tip_body_name = "suction_tool_end_link"
     psm_collision_body_names_expr = "(psm_pitch_end_link|psm_main_insertion_link|suction_tool_pitch_link|suction_tool_end_link)"
@@ -1017,7 +1016,8 @@ class PsmBloodPipeAbsorptionEnv(DirectRLEnv):
         absorption_complete = task_state.absorbed_count >= self._success_threshold
         success = absorption_complete & (~joint_limit_reached) & (~severe_collision) & (~pipe_violation)
 
-        terminated = success | joint_limit_reached | severe_collision | pipe_violation
+        # terminated = success | joint_limit_reached | severe_collision | pipe_violation
+        terminated = success | severe_collision
         truncated = self.episode_length_buf >= self.max_episode_length - 1
         flags = {
             "success": success,
