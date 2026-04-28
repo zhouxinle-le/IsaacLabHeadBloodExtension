@@ -514,7 +514,7 @@ class PsmBloodPipeAbsorptionEnv(DirectRLEnv):
         self.cfg.pipe_length = float(metadata["pipe_length"])
         self.cfg.pipe_inner_radius = 0.015 * model_scale
         self.cfg.pipe_blood_valid_radius = 0.011 * model_scale
-        self.cfg.pipe_blood_axis_margin = 0.006 * model_scale
+        self.cfg.pipe_blood_axis_margin = 0.003 * model_scale
         self.cfg.pipe_blood_template_z_start = 0.010 * model_scale
         self.cfg.pipe_blood_template_z_end = 0.045 * model_scale
         self._pipe_model_parameters_synced = True
