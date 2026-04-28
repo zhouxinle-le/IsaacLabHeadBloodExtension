@@ -25,7 +25,7 @@ from omni.isaac.lab.terrains import TerrainImporterCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.math import subtract_frame_transforms
 from omni.physx import acquire_physx_interface
-from pxr import Gf
+from pxr import Gf, Usd, UsdGeom
 
 from .fluid_object import FluidObject, FluidObjectCfg
 from .suction import SuctionControllerNoTimer
@@ -67,15 +67,18 @@ class PsmBloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
 
     # spawn_pos_pipe = Gf.Vec3f(0.0, 0.37, 0.0) + Gf.Vec3f(0.0, 0.0, 0.08) + Gf.Vec3f(-0.041581, 0.0, 0.0)
     spawn_pos_pipe = Gf.Vec3f(0.0, 0.37, 0.0) + Gf.Vec3f(0.0, 0.0, 0.09) + Gf.Vec3f(-0.039522, 0.0, 0.0)
-    pipe_link_local_pos = (0.027805, 0.033187, 0.022133)
-    pipe_link_local_quat = (0.98480737, 0.0, 0.17365022, 0.0)
+    pipe_link_local_pos = (0.0398244, -0.033366002, 0.026559601)
+    pipe_link_local_quat = (0.69636397, 0.12278932, 0.12278932, -0.69636397)
+    pipe_model_auto_sync = True
+    pipe_link_prim_name = "pipe_Link"
+    pipe_reference_mesh_length = 0.058088833
     pipe_axis_local = (0.0, 0.0, 1.0)
     pipe_length = 0.058
     pipe_inner_radius = 0.015
     pipe_tool_clearance_margin = 0.003
     pipe_blood_valid_radius = 0.011
     pipe_blood_axis_margin = 0.006
-    pipe_blood_template_z_counts = (6, 8, 10)
+    pipe_blood_template_z_counts = (15, 21, 28)
     pipe_blood_template_z_start = 0.010
     pipe_blood_template_z_end = 0.045
     pipe_violation_patience = 2
@@ -406,6 +409,127 @@ class PsmBloodPipeAbsorptionEnv(DirectRLEnv):
         return torch.tensor((float(vec[0]), float(vec[1]), float(vec[2])), dtype=torch.float32, device=device)
 
     @staticmethod
+    def _normalize_quat_tuple(quat_wxyz: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
+        norm = math.sqrt(sum(value * value for value in quat_wxyz))
+        if norm <= 1.0e-9:
+            raise ValueError("Cannot normalize zero-length pipe link quaternion from USD.")
+        return tuple(float(value / norm) for value in quat_wxyz)
+
+    @staticmethod
+    def _find_unique_descendant_by_name(root_prim: Usd.Prim, prim_name: str) -> Usd.Prim:
+        matches = [prim for prim in Usd.PrimRange(root_prim) if prim.GetName() == prim_name]
+        if len(matches) != 1:
+            paths = ", ".join(str(prim.GetPath()) for prim in matches)
+            detail = f" Found matches: {paths}." if paths else ""
+            raise RuntimeError(
+                f"Expected exactly one prim named '{prim_name}' under '{root_prim.GetPath()}'."
+                + detail
+            )
+        return matches[0]
+
+    @staticmethod
+    def _read_pipe_model_metadata(usd_path: str, pipe_link_prim_name: str) -> dict[str, object]:
+        stage = Usd.Stage.Open(usd_path)
+        if stage is None:
+            raise RuntimeError(f"Failed to open pipe USD model at '{usd_path}'.")
+
+        root_prim = stage.GetDefaultPrim()
+        if not root_prim or not root_prim.IsValid():
+            raise RuntimeError(f"Pipe USD model '{usd_path}' does not define a valid default prim.")
+
+        pipe_prim = PsmBloodPipeAbsorptionEnv._find_unique_descendant_by_name(root_prim, pipe_link_prim_name)
+        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+        root_to_world = xform_cache.GetLocalToWorldTransform(root_prim)
+        pipe_to_world = xform_cache.GetLocalToWorldTransform(pipe_prim)
+        pipe_to_root = pipe_to_world * root_to_world.GetInverse()
+        pipe_world_to_local = pipe_to_world.GetInverse()
+
+        translation = pipe_to_root.ExtractTranslation()
+        rotation = pipe_to_root.ExtractRotationQuat()
+        rotation_imag = rotation.GetImaginary()
+        pipe_link_quat = PsmBloodPipeAbsorptionEnv._normalize_quat_tuple(
+            (
+                float(rotation.GetReal()),
+                float(rotation_imag[0]),
+                float(rotation_imag[1]),
+                float(rotation_imag[2]),
+            )
+        )
+
+        points_pipe: list[tuple[float, float, float]] = []
+        mesh_count = 0
+        for prim in Usd.PrimRange(pipe_prim):
+            if prim.GetTypeName() != "Mesh":
+                continue
+            mesh_points = UsdGeom.Mesh(prim).GetPointsAttr().Get()
+            if mesh_points is None:
+                continue
+            mesh_count += 1
+            mesh_to_world = xform_cache.GetLocalToWorldTransform(prim)
+            for point in mesh_points:
+                point_w = mesh_to_world.Transform(
+                    Gf.Vec3d(float(point[0]), float(point[1]), float(point[2]))
+                )
+                point_pipe = pipe_world_to_local.Transform(point_w)
+                points_pipe.append((float(point_pipe[0]), float(point_pipe[1]), float(point_pipe[2])))
+
+        if len(points_pipe) == 0:
+            raise RuntimeError(
+                f"Pipe link prim '{pipe_prim.GetPath()}' in '{usd_path}' does not contain mesh points."
+            )
+
+        pipe_min = tuple(min(point[axis] for point in points_pipe) for axis in range(3))
+        pipe_max = tuple(max(point[axis] for point in points_pipe) for axis in range(3))
+        pipe_length = float(pipe_max[2] - pipe_min[2])
+        if pipe_length <= 1.0e-9:
+            raise RuntimeError(
+                f"Pipe link prim '{pipe_prim.GetPath()}' in '{usd_path}' has non-positive z-axis length."
+            )
+
+        return {
+            "pipe_prim_path": str(pipe_prim.GetPath()),
+            "pipe_link_local_pos": (float(translation[0]), float(translation[1]), float(translation[2])),
+            "pipe_link_local_quat": pipe_link_quat,
+            "pipe_local_min": pipe_min,
+            "pipe_local_max": pipe_max,
+            "pipe_length": pipe_length,
+            "mesh_count": mesh_count,
+            "point_count": len(points_pipe),
+        }
+
+    def _sync_pipe_model_parameters_from_usd(self) -> None:
+        if getattr(self, "_pipe_model_parameters_synced", False):
+            return
+
+        if not bool(getattr(self.cfg, "pipe_model_auto_sync", True)):
+            return
+
+        usd_path = str(self.cfg.pipe.spawn.usd_path)
+        metadata = self._read_pipe_model_metadata(usd_path, str(self.cfg.pipe_link_prim_name))
+        reference_length = max(float(self.cfg.pipe_reference_mesh_length), 1.0e-9)
+        model_scale = float(metadata["pipe_length"]) / reference_length
+
+        self.cfg.pipe_link_local_pos = metadata["pipe_link_local_pos"]
+        self.cfg.pipe_link_local_quat = metadata["pipe_link_local_quat"]
+        self.cfg.pipe_length = float(metadata["pipe_length"])
+        self.cfg.pipe_inner_radius = 0.015 * model_scale
+        self.cfg.pipe_blood_valid_radius = 0.011 * model_scale
+        self.cfg.pipe_blood_axis_margin = 0.006 * model_scale
+        self.cfg.pipe_blood_template_z_start = 0.010 * model_scale
+        self.cfg.pipe_blood_template_z_end = 0.045 * model_scale
+        self._pipe_model_parameters_synced = True
+
+        message = (
+            "Synced pipe model parameters from "
+            f"'{usd_path}' prim '{metadata['pipe_prim_path']}': "
+            f"length={self.cfg.pipe_length:.9f}, scale={model_scale:.6f}, "
+            f"inner_radius={self.cfg.pipe_inner_radius:.9f}, "
+            f"blood_valid_radius={self.cfg.pipe_blood_valid_radius:.9f}."
+        )
+        print(f"[INFO] {message}", flush=True)
+        carb.log_info(message)
+
+    @staticmethod
     def _normalize_quat_torch(quat_wxyz: torch.Tensor) -> torch.Tensor:
         return quat_wxyz / torch.linalg.vector_norm(quat_wxyz, dim=-1, keepdim=True).clamp_min(1.0e-9)
 
@@ -629,6 +753,8 @@ class PsmBloodPipeAbsorptionEnv(DirectRLEnv):
         self._ee_jacobi_idx = self._psm_entity_cfg.body_ids[0] - 1
 
     def _setup_scene(self):
+        self._sync_pipe_model_parameters_from_usd()
+
         physx_interface = acquire_physx_interface()
         physx_interface.overwrite_gpu_setting(1)
 
