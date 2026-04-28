@@ -78,7 +78,7 @@ class PsmBloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     pipe_tool_clearance_margin = 0.003
     pipe_blood_valid_radius = 0.011
     pipe_blood_axis_margin = 0.006
-    pipe_blood_template_z_counts = (15, 21, 28)
+    pipe_blood_template_z_counts = (15, 21) # (15, 21, 28)
     pipe_blood_template_z_start = 0.010
     pipe_blood_template_z_end = 0.045
     pipe_violation_patience = 2
@@ -106,7 +106,7 @@ class PsmBloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     )
     table_pos = Gf.Vec3f(0.0, 0.0, 0.457)
     table_height_offset = 0.914
-    psm_init_pos = (0.0, -0.34, 0.0)
+    psm_init_pos = (0.0, -0.24, 0.0)
     psm_base_block_size = (0.18, 0.38, 0.08)
     psm_base_block_color = (0.32, 0.32, 0.32)
 
@@ -170,10 +170,9 @@ class PsmBloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     liquidCfg.particleSpacing = 0.004
     liquidCfg.viscosity = 3.5
     blood_init_pos_list = ()
-    load_blood_init_template_enabled = False
-    save_blood_init_template_enabled = True
+    save_blood_init_template_enabled = False
     save_blood_init_template_name = "pipe_particle_init_pos_28"
-    save_blood_init_template_after_steps = 400
+    save_blood_init_template_after_steps = 240
 
     psm_robot = ArticulationCfg(
         prim_path="/World/envs/env_.*/PSM",
@@ -286,7 +285,9 @@ class PsmBloodPipeAbsorptionEnv(DirectRLEnv):
         self._psm_contact_sensors: dict[str, ContactSensor] = {}
         self._psm_collision_body_names: list[str] = []
         self._ee_jacobi_idx: int | None = None
-        self._blood_template_saved = False
+        self._capture_blood_template_enabled = bool(cfg.save_blood_init_template_enabled)
+        self._blood_template_capture_saved = False
+        self._capture_blood_reset_state: tuple[np.ndarray, np.ndarray] | None = None
         super().__init__(cfg, render_mode, **kwargs)
 
         self._init_scene_runtime_state()
@@ -612,111 +613,49 @@ class PsmBloodPipeAbsorptionEnv(DirectRLEnv):
             | (clearance < -margin)
         )
 
-    def _get_blood_template_path(self, template_name: str) -> str:
-        template_name = str(template_name)
+    def _get_blood_template_capture_path(self) -> str:
+        template_name = str(self.cfg.save_blood_init_template_name)
         if not template_name.endswith(".pt"):
             template_name = f"{template_name}.pt"
         return os.path.join(self.cfg.CURRENT_PATH, "usd_models", template_name)
 
-    def _max_blood_particle_capacity(self) -> int:
-        return int(
-            self.cfg.liquidCfg.numParticlesX * self.cfg.liquidCfg.numParticlesY * self.cfg.liquidCfg.numParticlesZ
-        )
-
     def _maybe_save_blood_template(self) -> None:
-        if not bool(self.cfg.save_blood_init_template_enabled) or self._blood_template_saved:
+        if not self._capture_blood_template_enabled or self._blood_template_capture_saved:
             return
 
-        save_after_steps = max(int(self.cfg.save_blood_init_template_after_steps), 0)
-        env0_step = int(self._step_count[0].item())
-        if env0_step < save_after_steps:
+        settle_steps = max(int(self.cfg.save_blood_init_template_after_steps), 0)
+        if int(self._step_count[0].item()) < settle_steps:
             return
 
         particles_pos, _ = self.liquid.read_particles(0)
-        positions = np.asarray(particles_pos, dtype=np.float32)
-        if positions.ndim != 2 or positions.shape[1] != 3:
-            raise RuntimeError(
-                f"Cannot save blood template because env_0 particles have shape {positions.shape}, expected (N, 3)."
-            )
-        if positions.shape[0] <= 0:
+        if len(particles_pos) <= 0:
             raise RuntimeError("Cannot save blood template because env_0 has no particles.")
 
-        save_path = self._get_blood_template_path(self.cfg.save_blood_init_template_name)
-        torch.save(torch.from_numpy(positions.copy()), save_path)
-        self._blood_template_saved = True
+        save_path = self._get_blood_template_capture_path()
+        torch.save(torch.tensor(np.asarray(particles_pos, dtype=np.float32)), save_path)
+        self._blood_template_capture_saved = True
         message = (
-            f"Saved blood template with {positions.shape[0]} particles to '{save_path}' "
-            f"after {env0_step} control steps."
+            f"Saved blood template with {len(particles_pos)} particles to '{save_path}' "
+            f"after {int(self._step_count[0].item())} control steps."
         )
         print(f"[INFO] {message}", flush=True)
         carb.log_info(message)
 
     def _initialize_blood_reset_source(self) -> None:
+        if self._capture_blood_template_enabled:
+            particles_pos, particles_vel = self.liquid.read_particles(0)
+            self._capture_blood_reset_state = (
+                np.asarray(particles_pos, dtype=np.float32).copy(),
+                np.asarray(particles_vel, dtype=np.float32).copy(),
+            )
+            return
+
         self._load_blood_init_templates()
 
     def _load_blood_init_templates(self) -> None:
-        if bool(self.cfg.load_blood_init_template_enabled):
-            self._load_blood_init_templates_from_pt()
-        else:
-            self._load_procedural_blood_init_templates()
-
-    def _load_blood_init_templates_from_pt(self) -> None:
-        template_names = tuple(self.cfg.blood_init_pos_list)
-        if len(template_names) <= 0:
-            raise ValueError(
-                "load_blood_init_template_enabled=True requires blood_init_pos_list to contain at least one template."
-            )
-
-        max_particle_capacity = self._max_blood_particle_capacity()
-        blood_init_pos_list: list[np.ndarray] = []
-        blood_init_vel_list: list[np.ndarray] = []
-        blood_init_counts: list[int] = []
-
-        for template_name in template_names:
-            template_path = self._get_blood_template_path(str(template_name))
-            if not os.path.isfile(template_path):
-                raise FileNotFoundError(f"Blood template file not found: {template_path}")
-
-            try:
-                template = torch.load(template_path, map_location="cpu", weights_only=True)
-            except TypeError:
-                template = torch.load(template_path, map_location="cpu")
-
-            if isinstance(template, torch.Tensor):
-                positions_source = template.detach().cpu().numpy()
-            else:
-                positions_source = template
-
-            try:
-                positions = np.asarray(positions_source, dtype=np.float32)
-            except (TypeError, ValueError) as exc:
-                raise ValueError(
-                    f"Blood template file '{template_path}' must contain particle positions with shape (N, 3)."
-                ) from exc
-
-            if positions.ndim != 2 or positions.shape[1] != 3:
-                raise ValueError(
-                    f"Blood template file '{template_path}' must have shape (N, 3), but got {positions.shape}."
-                )
-            if positions.shape[0] <= 0:
-                raise ValueError(f"Blood template file '{template_path}' must contain at least one particle.")
-            if positions.shape[0] > max_particle_capacity:
-                raise ValueError(
-                    f"Blood template file '{template_path}' has {positions.shape[0]} particles, "
-                    f"which exceeds the configured capacity of {max_particle_capacity}."
-                )
-
-            velocities = np.zeros_like(positions, dtype=np.float32)
-            blood_init_pos_list.append(positions.copy())
-            blood_init_vel_list.append(velocities)
-            blood_init_counts.append(int(positions.shape[0]))
-
-        self._blood_init_pos_list = blood_init_pos_list
-        self._blood_init_vel_list = blood_init_vel_list
-        self._blood_init_counts = tuple(blood_init_counts)
-
-    def _load_procedural_blood_init_templates(self) -> None:
-        max_particle_capacity = self._max_blood_particle_capacity()
+        max_particle_capacity = int(
+            self.cfg.liquidCfg.numParticlesX * self.cfg.liquidCfg.numParticlesY * self.cfg.liquidCfg.numParticlesZ
+        )
         blood_init_pos_list: list[np.ndarray] = []
         blood_init_vel_list: list[np.ndarray] = []
         blood_init_counts: list[int] = []
@@ -770,6 +709,18 @@ class PsmBloodPipeAbsorptionEnv(DirectRLEnv):
         ).repeat(env_count, 1)
         env_id_list = env_ids.detach().cpu().tolist()
         self._pipe.set_world_poses(pipe_positions, pipe_orientations, env_id_list)
+
+        if self._capture_blood_template_enabled:
+            if self._capture_blood_reset_state is None:
+                raise RuntimeError("Blood template capture mode is enabled but no capture reset state is available.")
+
+            reset_pos, reset_vel = self._capture_blood_reset_state
+            self.liquid.reset_particles(env_id_list, reset_pos, reset_vel)
+            particle_count = float(reset_pos.shape[0])
+            self._initial_particle_count[env_ids] = particle_count
+            self._success_threshold[env_ids] = particle_count * float(self.cfg.blood_success_ratio)
+            self._blood_template_index[env_ids] = -1
+            return
 
         num_templates = len(self._blood_init_pos_list)
         if num_templates <= 0:
@@ -865,19 +816,24 @@ class PsmBloodPipeAbsorptionEnv(DirectRLEnv):
         if self._ee_jacobi_idx is None:
             self._resolve_ik_handles()
 
+        if self._capture_blood_template_enabled:
+            self._raw_actions.zero_()
+            tip_pos_w, _ = self._compute_tip_pose_and_direction_w()
+            self._ee_goal_pos_w[:] = tip_pos_w
+            self._joint_pos_des[:] = self._psm.data.default_joint_pos[:, self._ik_joint_ids]
+            self._set_task_state_dirty()
+            return
+
+        self._raw_actions[:] = torch.clamp(actions, -1.0, 1.0)
+        delta_pos_pipe = self._raw_actions * self._pipe_action_scale.unsqueeze(0)
+
         tip_pos_w, _ = self._compute_tip_pose_and_direction_w()
         tip_quat_w = self._compute_tip_quat_w()
-        if bool(self.cfg.save_blood_init_template_enabled):
-            self._raw_actions.zero_()
-            self._ee_goal_pos_w[:] = tip_pos_w
-        else:
-            self._raw_actions[:] = torch.clamp(actions, -1.0, 1.0)
-            delta_pos_pipe = self._raw_actions * self._pipe_action_scale.unsqueeze(0)
-            uninitialized_goal = torch.linalg.vector_norm(self._ee_goal_pos_w, dim=-1) < 1.0e-6
-            self._ee_goal_pos_w[uninitialized_goal] = tip_pos_w[uninitialized_goal]
-            ee_goal_pos_pipe = self._world_to_pipe_pos(self._ee_goal_pos_w)
-            ee_goal_pos_pipe = self._clamp_pipe_position(ee_goal_pos_pipe + delta_pos_pipe)
-            self._ee_goal_pos_w[:] = self._pipe_to_world_pos(ee_goal_pos_pipe)
+        uninitialized_goal = torch.linalg.vector_norm(self._ee_goal_pos_w, dim=-1) < 1.0e-6
+        self._ee_goal_pos_w[uninitialized_goal] = tip_pos_w[uninitialized_goal]
+        ee_goal_pos_pipe = self._world_to_pipe_pos(self._ee_goal_pos_w)
+        ee_goal_pos_pipe = self._clamp_pipe_position(ee_goal_pos_pipe + delta_pos_pipe)
+        self._ee_goal_pos_w[:] = self._pipe_to_world_pos(ee_goal_pos_pipe)
 
         root_pose_w = self._psm.data.root_state_w[:, 0:7]
         ee_pos_b, ee_quat_b = subtract_frame_transforms(
@@ -1044,7 +1000,10 @@ class PsmBloodPipeAbsorptionEnv(DirectRLEnv):
         env_origins_np = self.scene.env_origins.detach().cpu().numpy()
         tip_pos_local_np = (tip_pos_w - self.scene.env_origins).detach().cpu().numpy()
         tip_dir_w_np = tip_dir_w.detach().cpu().numpy()
-        apply_suction_mask_np = (self._step_count > 0).detach().cpu().numpy()
+        if self._capture_blood_template_enabled:
+            apply_suction_mask_np = np.zeros((self.num_envs,), dtype=bool)
+        else:
+            apply_suction_mask_np = (self._step_count > 0).detach().cpu().numpy()
         glass2_pos_np = (self._glass2.data.root_pos_w - self.scene.env_origins).detach().cpu().numpy()
 
         # 一步运算，拿到吸血结果和当前统计指标
@@ -1184,7 +1143,7 @@ class PsmBloodPipeAbsorptionEnv(DirectRLEnv):
         success = absorption_complete & (~joint_limit_reached) & (~severe_collision) & (~pipe_violation)
 
         # terminated = success | joint_limit_reached | severe_collision | pipe_violation
-        terminated = success
+        terminated = success | severe_collision
         truncated = self.episode_length_buf >= self.max_episode_length - 1
         flags = {
             "success": success,
@@ -1198,6 +1157,20 @@ class PsmBloodPipeAbsorptionEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         if not self._done_cache_dirty:
+            return self._terminated_cache.clone(), self._truncated_cache.clone()
+
+        if self._capture_blood_template_enabled:
+            self._refresh_post_step_task_state()
+            self._severe_contact_counter.zero_()
+            self._pipe_violation_counter.zero_()
+            self._episode_success[:] = False
+            self._episode_joint_limit[:] = False
+            self._episode_severe_collision[:] = False
+            self._episode_pipe_violation[:] = False
+            self._episode_time_out[:] = False
+            self._terminated_cache[:] = False
+            self._truncated_cache[:] = False
+            self._done_cache_dirty = False
             return self._terminated_cache.clone(), self._truncated_cache.clone()
 
         self._refresh_post_step_task_state()
@@ -1407,6 +1380,8 @@ class PsmBloodPipeAbsorptionEnv(DirectRLEnv):
             | self._episode_time_out[env_ids]
         )
         self._flush_episode_logs(env_ids[finished_mask])
+        if self._capture_blood_template_enabled:
+            self._blood_template_capture_saved = False
 
         root_state = self._psm.data.default_root_state[env_ids].clone()
         root_state[:, :3] += self.scene.env_origins[env_ids]
