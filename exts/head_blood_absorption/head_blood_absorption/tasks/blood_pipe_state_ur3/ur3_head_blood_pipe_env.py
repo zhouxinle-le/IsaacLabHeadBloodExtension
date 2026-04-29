@@ -237,7 +237,6 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     )
     ur3_tip_local_offset = (0.0, -0.00423, 0.0)
     ur3_tip_local_axis = (0.0, -1.0, 0.0)
-    tip_contact_force_threshold = 0.5
     suction_cone_half_angle_deg = 60.0
     suction_cone_range = 0.07
     suction_force_scale = 0.02
@@ -257,7 +256,7 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     reward_collision_force_weight = 0.20
     absorbed_delta_ema_alpha = 0.2
     severe_contact_force_threshold = 2.0
-    severe_contact_patience = 2
+    severe_contact_patience = 1
 
     blood_success_ratio = 0.97
 
@@ -268,7 +267,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
     cfg: Ur3BloodPipeAbsorptionEnvCfg
 
     def __init__(self, cfg: Ur3BloodPipeAbsorptionEnvCfg, render_mode: str | None = None, **kwargs):
-        self._tip_contact_sensor = None
         self._ur3_contact_sensors: dict[str, ContactSensor] = {}
         self._ur3_collision_body_names: list[str] = []
         self._ee_jacobi_idx: int | None = None
@@ -900,18 +898,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._ur3.set_joint_position_target(self._joint_pos_des, joint_ids=self._ik_joint_ids)
 
     def _register_ur3_contact_sensors(self) -> None:
-        tip_body_path = self._ur3_body_name_to_path.get(self.cfg.ur3_tip_body_name)
-        tip_contact_cfg = ContactSensorCfg(
-            prim_path=tip_body_path,
-            update_period=0.0,
-            history_length=1,
-            track_air_time=True,
-            force_threshold=float(self.cfg.tip_contact_force_threshold),
-            debug_vis=False,
-        )
-        self._tip_contact_sensor = ContactSensor(cfg=tip_contact_cfg)
-        self.scene.sensors["tip_contact"] = self._tip_contact_sensor
-
         self._ur3_contact_sensors = {}
         for body_name in self._ur3_collision_body_names:
             body_path = self._ur3_body_name_to_path.get(body_name)
@@ -930,7 +916,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             self.scene.sensors[sensor_name] = sensor
 
         if self.sim.is_playing():
-            self._tip_contact_sensor._initialize_callback(None)
             for sensor in self._ur3_contact_sensors.values():
                 sensor._initialize_callback(None)
 
@@ -948,16 +933,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "UR3 severe collision monitoring bodies: "
             + ", ".join(self._ur3_collision_body_names)
         )
-
-    def _get_tip_contact_force(self) -> torch.Tensor:
-        if self._tip_contact_sensor is None:
-            return torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
-
-        net_forces_w = self.scene["tip_contact"].data.net_forces_w
-        contact_force = torch.linalg.vector_norm(net_forces_w, dim=-1)
-        if contact_force.ndim > 1:
-            contact_force = torch.amax(contact_force, dim=1)
-        return contact_force.to(dtype=torch.float32)
 
     def _get_ur3_contact_force(self) -> torch.Tensor:
         if len(self._ur3_contact_sensors) == 0:
@@ -1142,7 +1117,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             self._severe_contact_counter + 1,
             torch.zeros_like(self._severe_contact_counter),
         )
-        severe_collision = next_counter >= int(self.cfg.severe_contact_patience)
+        severe_collision = next_counter >= max(int(self.cfg.severe_contact_patience), 1)
         absorption_complete = task_state.absorbed_count >= self._success_threshold
         success = absorption_complete & (~severe_collision)
 
@@ -1221,7 +1196,9 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             device=self.device,
         )
         absorption_complete = task_state.absorbed_count >= self._success_threshold
-        task_complete = self.cfg.reward_task_complete * absorption_complete.float()
+        severe_contact = reward_inputs.contact_force > float(self.cfg.severe_contact_force_threshold)
+        safe_absorption_complete = absorption_complete & (~severe_contact)
+        task_complete = self.cfg.reward_task_complete * safe_absorption_complete.float()
         total_reward = (
             task_complete
             + absorb_reward
@@ -1249,7 +1226,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
 
         self._refresh_post_step_task_state()
 
-        raw_contact_force = self._get_tip_contact_force()
         ur3_contact_force = self._get_ur3_contact_force()
         reward_terms = self._compute_reward_terms(
             ParticleRewardInputs(
@@ -1273,6 +1249,8 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         tip_dir_pipe = self._world_dir_to_pipe(tip_dir_w)
         tip_pipe_axis_alignment = torch.abs(tip_dir_pipe[:, 2])
         absorption_complete = task_state.absorbed_count >= self._success_threshold
+        severe_contact = ur3_contact_force > float(self.cfg.severe_contact_force_threshold)
+        success = absorption_complete & (~severe_contact)
         self.extras["log"] = {
             "Metrics/absorbed_count": task_state.absorbed_count.mean(),
             "Metrics/absorbed_delta": task_state.absorbed_delta.mean(),
@@ -1288,8 +1266,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "Metrics/valid_in_cone_ratio": task_state.valid_in_cone_ratio.mean(),
             "Metrics/valid_in_inlet_ratio": task_state.valid_in_inlet_ratio.mean(),
             "Metrics/absorbed_delta_ema": task_state.absorbed_delta_ema.mean(),
-            "Metrics/raw_contact_force_mean": raw_contact_force.mean(),
-            "Metrics/raw_contact_force_max": raw_contact_force.max(),
             "Metrics/ur3_contact_force_mean": ur3_contact_force.mean(),
             "Metrics/ur3_contact_force_max": ur3_contact_force.max(),
             "Metrics/tip_pipe_clearance_mean": tip_clearance.mean(),
@@ -1298,7 +1274,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "Metrics/tip_goal_error_max": tip_goal_error.max(),
             "Metrics/tip_pipe_axis_alignment": tip_pipe_axis_alignment.mean(),
             "Metrics/absorption_complete_rate": absorption_complete.float().mean(),
-            "Metrics/success_rate": absorption_complete.float().mean(),
+            "Metrics/success_rate": success.float().mean(),
         }
 
         self._reward_cache[:] = reward_terms["total_reward"]
