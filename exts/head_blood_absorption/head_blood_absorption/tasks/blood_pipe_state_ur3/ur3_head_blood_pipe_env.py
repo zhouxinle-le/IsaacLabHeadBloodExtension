@@ -257,7 +257,6 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     reward_contact_warning_weight = 0.2
     reward_severe_collision_penalty = 10.0
     severe_contact_force_threshold = 2.0
-    severe_contact_patience = 1
 
     blood_success_ratio = 0.97
 
@@ -306,7 +305,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
 
     def _init_episode_stats(self) -> None:
         self._step_count = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
-        self._severe_contact_counter = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self._episode_reward_sums = self._build_episode_reward_sums()
         self._episode_success = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._episode_severe_collision = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
@@ -1107,15 +1105,9 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
 
     def _compute_termination_flags(
         self, contact_force: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
         task_state = self._particle_state
-        severe_contact = contact_force > float(self.cfg.severe_contact_force_threshold)
-        next_counter = torch.where(
-            severe_contact,
-            self._severe_contact_counter + 1,
-            torch.zeros_like(self._severe_contact_counter),
-        )
-        severe_collision = next_counter >= max(int(self.cfg.severe_contact_patience), 1)
+        severe_collision = contact_force > float(self.cfg.severe_contact_force_threshold)
         absorption_complete = task_state.absorbed_count >= self._success_threshold
         success = absorption_complete & (~severe_collision)
 
@@ -1127,7 +1119,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "absorption_complete": absorption_complete,
             "time_out": truncated,
         }
-        return terminated, truncated, next_counter, flags
+        return terminated, truncated, flags
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         if not self._done_cache_dirty:
@@ -1135,7 +1127,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
 
         if self._capture_blood_template_enabled:
             self._refresh_post_step_task_state()
-            self._severe_contact_counter.zero_()
             self._episode_success[:] = False
             self._episode_severe_collision[:] = False
             self._episode_time_out[:] = False
@@ -1147,8 +1138,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._refresh_post_step_task_state()
 
         ur3_contact_force = self._get_ur3_contact_force()
-        terminated, truncated, next_counter, flags = self._compute_termination_flags(ur3_contact_force)
-        self._severe_contact_counter[:] = next_counter
+        terminated, truncated, flags = self._compute_termination_flags(ur3_contact_force)
         self._episode_success[:] = flags["success"]
         self._episode_severe_collision[:] = flags["severe_collision"]
         self._episode_time_out[:] = flags["time_out"]
@@ -1350,7 +1340,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
 
         self._suction_controller.reset(env_ids.tolist())
         self._step_count[env_ids] = 0
-        self._severe_contact_counter[env_ids] = 0
         for values in self._episode_reward_sums.values():
             values[env_ids] = 0.0
         self._episode_success[env_ids] = False
