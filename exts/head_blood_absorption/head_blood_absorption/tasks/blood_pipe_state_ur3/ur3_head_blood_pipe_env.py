@@ -253,7 +253,9 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     reward_action_weight = 0.02
     reward_time_penalty = 0.01
     reward_task_complete = 25.0
-    reward_collision_force_weight = 0.20
+    contact_warning_force_threshold = 0.5
+    reward_contact_warning_weight = 0.2
+    reward_severe_collision_penalty = 10.0
     severe_contact_force_threshold = 2.0
     severe_contact_patience = 1
 
@@ -288,14 +290,15 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._observation_pending = True
 
     def _init_particle_task_state(self) -> None:
-        self._particle_task_tracker = ParticleTaskTracker(cfg=self.cfg, num_envs=self.num_envs, device=self.device)
+        self._particle_task_tracker = ParticleTaskTracker(num_envs=self.num_envs, device=self.device)
 
     def _build_episode_reward_sums(self) -> dict[str, torch.Tensor]:
         return {
             "absorb_reward": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "centroid_progress_reward": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "action_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
-            "collision_force_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
+            "contact_warning_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
+            "severe_collision_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "wall_clearance_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "time_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "task_complete": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
@@ -377,10 +380,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
     @property
     def _particle_state(self) -> ParticleTaskState:
         return self._particle_task_tracker.state
-
-    @staticmethod
-    def _gf_vec3_to_tensor(vec: Gf.Vec3f, device: torch.device | str) -> torch.Tensor:
-        return torch.tensor((float(vec[0]), float(vec[1]), float(vec[2])), dtype=torch.float32, device=device)
 
     @staticmethod
     def _normalize_quat_tuple(quat_wxyz: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
@@ -907,7 +906,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
                 prim_path=body_path,
                 update_period=0.0,
                 history_length=1,
-                force_threshold=float(self.cfg.severe_contact_force_threshold),
+                force_threshold=float(self.cfg.contact_warning_force_threshold),
                 debug_vis=False,
             )
             sensor = ContactSensor(cfg=ur3_contact_cfg)
@@ -1077,7 +1076,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         ).unsqueeze(1)
         valid_in_inlet_ratio = torch.clamp(task_state.valid_in_inlet_ratio, min=0.0, max=1.0).unsqueeze(1)
         contact_ratio = torch.clamp(
-            contact_force / max(float(self.cfg.severe_contact_force_threshold), 1.0e-6),
+            contact_force / max(float(self.cfg.contact_warning_force_threshold), 1.0e-6),
             min=0.0,
             max=1.0,
         ).unsqueeze(1)
@@ -1174,12 +1173,17 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
 
         action_penalty = self.cfg.reward_action_weight * torch.sum(reward_inputs.raw_actions**2, dim=1)
 
-        safe_contact_force = torch.log1p(torch.clamp(reward_inputs.contact_force, min=0.0))
-        safe_contact_threshold = math.log1p(float(self.cfg.severe_contact_force_threshold))
-        collision_force_penalty = self.cfg.reward_collision_force_weight * torch.clamp(
-            safe_contact_force - safe_contact_threshold,
+        warning_threshold = float(self.cfg.contact_warning_force_threshold)
+        severe_threshold = float(self.cfg.severe_contact_force_threshold)
+        warning_span = max(severe_threshold - warning_threshold, 1.0e-6)
+        contact_warning = torch.clamp(
+            (reward_inputs.contact_force - warning_threshold) / warning_span,
             min=0.0,
+            max=1.0,
         )
+        contact_warning_penalty = self.cfg.reward_contact_warning_weight * contact_warning
+        severe_contact = reward_inputs.contact_force > severe_threshold
+        severe_collision_penalty = self.cfg.reward_severe_collision_penalty * severe_contact.float()
         tip_pos_w, _ = self._compute_tip_pose_and_direction_w()
         _, _, tip_clearance = self._compute_pipe_clearance(tip_pos_w)
         clearance_margin = max(float(self.cfg.pipe_tool_clearance_margin), 1.0e-6)
@@ -1195,7 +1199,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             device=self.device,
         )
         absorption_complete = task_state.absorbed_count >= self._success_threshold
-        severe_contact = reward_inputs.contact_force > float(self.cfg.severe_contact_force_threshold)
         safe_absorption_complete = absorption_complete & (~severe_contact)
         task_complete = self.cfg.reward_task_complete * safe_absorption_complete.float()
         total_reward = (
@@ -1203,7 +1206,8 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             + absorb_reward
             + centroid_progress_reward
             - action_penalty
-            - collision_force_penalty
+            - contact_warning_penalty
+            - severe_collision_penalty
             - wall_clearance_penalty
             - time_penalty
         ).float()
@@ -1212,7 +1216,8 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "absorb_reward": absorb_reward,
             "centroid_progress_reward": centroid_progress_reward,
             "action_penalty": action_penalty,
-            "collision_force_penalty": collision_force_penalty,
+            "contact_warning_penalty": contact_warning_penalty,
+            "severe_collision_penalty": severe_collision_penalty,
             "wall_clearance_penalty": wall_clearance_penalty,
             "time_penalty": time_penalty,
             "task_complete": task_complete,
@@ -1237,7 +1242,8 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._episode_reward_sums["absorb_reward"] += reward_terms["absorb_reward"]
         self._episode_reward_sums["centroid_progress_reward"] += reward_terms["centroid_progress_reward"]
         self._episode_reward_sums["action_penalty"] -= reward_terms["action_penalty"]
-        self._episode_reward_sums["collision_force_penalty"] -= reward_terms["collision_force_penalty"]
+        self._episode_reward_sums["contact_warning_penalty"] -= reward_terms["contact_warning_penalty"]
+        self._episode_reward_sums["severe_collision_penalty"] -= reward_terms["severe_collision_penalty"]
         self._episode_reward_sums["wall_clearance_penalty"] -= reward_terms["wall_clearance_penalty"]
         self._episode_reward_sums["time_penalty"] -= reward_terms["time_penalty"]
         self._episode_reward_sums["task_complete"] += reward_terms["task_complete"]

@@ -24,7 +24,7 @@ class ParticleRewardInputs:
 
 
 class ParticleTaskTracker:
-    def __init__(self, cfg, num_envs: int, device: torch.device | str):
+    def __init__(self, num_envs: int, device: torch.device | str):
         self._num_envs = int(num_envs)
         self.device = torch.device(device)
 

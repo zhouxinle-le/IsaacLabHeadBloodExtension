@@ -39,30 +39,6 @@ def rotate_vector_by_quat(quat_wxyz: np.ndarray, vec: np.ndarray) -> np.ndarray:
     return vec + 2.0 * (quat_wxyz[0] * uv + uuv)
 
 
-def compute_tip_pose_numpy(
-    tip_body_pos_w: np.ndarray,
-    tip_local_offset: np.ndarray,
-    tip_local_axis: np.ndarray,
-    body_quat_w: np.ndarray | None = None,
-    use_body_quat_for_tip_dir: bool = True,
-    env_origin: np.ndarray | None = None,
-) -> tuple[np.ndarray, np.ndarray]:
-    tip_pos = np.asarray(tip_body_pos_w, dtype=np.float32) + np.asarray(tip_local_offset, dtype=np.float32)
-    tip_dir = np.asarray(tip_local_axis, dtype=np.float32).copy()
-
-    if body_quat_w is not None:
-        quat_wxyz = np.asarray(body_quat_w, dtype=np.float32)
-        tip_pos = np.asarray(tip_body_pos_w, dtype=np.float32) + rotate_vector_by_quat(quat_wxyz, tip_local_offset)
-        if use_body_quat_for_tip_dir:
-            tip_dir = rotate_vector_by_quat(quat_wxyz, tip_local_axis)
-
-    tip_dir = tip_dir / (np.linalg.norm(tip_dir) + 1.0e-9)
-    if env_origin is not None:
-        tip_pos = tip_pos - np.asarray(env_origin, dtype=np.float32)
-
-    return tip_pos.astype(np.float32, copy=False), tip_dir.astype(np.float32, copy=False)
-
-
 def compute_pipe_frame_pose(cfg) -> tuple[np.ndarray, np.ndarray]:
     root_pos = np.asarray(tuple(cfg.pipe.init_state.pos), dtype=np.float32)
     root_quat = normalize_quat(np.asarray(tuple(cfg.pipe.init_state.rot), dtype=np.float32))
