@@ -254,7 +254,6 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     reward_time_penalty = 0.01
     reward_task_complete = 25.0
     reward_collision_force_weight = 0.20
-    absorbed_delta_ema_alpha = 0.2
     severe_contact_force_threshold = 2.0
     severe_contact_patience = 1
 
@@ -1265,7 +1264,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "Metrics/blood_template_index": self._blood_template_index.to(dtype=torch.float32).mean(),
             "Metrics/valid_in_cone_ratio": task_state.valid_in_cone_ratio.mean(),
             "Metrics/valid_in_inlet_ratio": task_state.valid_in_inlet_ratio.mean(),
-            "Metrics/absorbed_delta_ema": task_state.absorbed_delta_ema.mean(),
             "Metrics/ur3_contact_force_mean": ur3_contact_force.mean(),
             "Metrics/ur3_contact_force_max": ur3_contact_force.max(),
             "Metrics/tip_pipe_clearance_mean": tip_clearance.mean(),
