@@ -258,7 +258,7 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     reward_severe_collision_penalty = 10.0
     severe_contact_force_threshold = 2.0
 
-    blood_success_ratio = 0.97
+    blood_success_ratio = 0.96
 
 
 class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
