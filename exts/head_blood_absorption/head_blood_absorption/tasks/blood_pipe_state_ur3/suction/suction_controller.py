@@ -30,12 +30,8 @@ class SuctionControllerNoTimer:
         num_envs = self._num_envs
 
         absorbed_delta = np.zeros((num_envs,), dtype=np.float32)
-        min_dist = np.full((num_envs,), float(self.cfg.suction_cone_range), dtype=np.float32)
-        inlet_count = np.zeros((num_envs,), dtype=np.float32)
-        cone_count = np.zeros((num_envs,), dtype=np.float32)
-        
-        # New stats for ParticleTaskTracker
-        blood_centroid_w = np.zeros((num_envs, 3), dtype=np.float32)
+        nearest_particle_w = np.zeros((num_envs, 3), dtype=np.float32)
+        nearest_particle_distance = np.full((num_envs,), float(self.cfg.suction_cone_range), dtype=np.float32)
         valid_in_cone_ratio = np.zeros((num_envs,), dtype=np.float32)
         valid_in_inlet_ratio = np.zeros((num_envs,), dtype=np.float32)
 
@@ -51,8 +47,7 @@ class SuctionControllerNoTimer:
             tip_pos = tip_pos_local_np[env_idx]
             tip_dir = tip_dir_w_np[env_idx]
             
-            # Default empty centroid to current tip pos world
-            blood_centroid_w[env_idx] = tip_pos + env_origins_np[env_idx]
+            nearest_particle_w[env_idx] = tip_pos + env_origins_np[env_idx]
 
             particles_pos, particles_vel = liquid.read_particles(env_idx)
             if len(particles_pos) == 0:
@@ -66,10 +61,7 @@ class SuctionControllerNoTimer:
             if not valid_mask.any():
                 continue
 
-            valid_positions = particles_pos[valid_mask]
-            centroid_local = valid_positions.mean(axis=0)
-            blood_centroid_w[env_idx] = centroid_local + env_origins_np[env_idx]
-            valid_count = max(valid_positions.shape[0], 1)
+            valid_count = max(int(valid_mask.sum()), 1)
 
             relative_positions, distances, axial_depth, radial_distance = compute_particle_relation(
                 particles_pos,
@@ -77,7 +69,10 @@ class SuctionControllerNoTimer:
                 tip_dir,
                 epsilon,
             )
-            min_dist[env_idx] = float(distances[valid_mask].min())
+            valid_indices = np.flatnonzero(valid_mask)
+            nearest_local_idx = int(valid_indices[np.argmin(distances[valid_mask])])
+            nearest_particle_distance[env_idx] = float(distances[nearest_local_idx])
+            nearest_particle_w[env_idx] = particles_pos[nearest_local_idx] + env_origins_np[env_idx]
             in_cone, in_inlet = compute_cone_and_inlet_masks(
                 distances=distances,
                 axial_depth=axial_depth,
@@ -103,13 +98,8 @@ class SuctionControllerNoTimer:
                 
             remove_mask = in_inlet
 
-            in_inlet_sum = float(in_inlet.sum())
-            in_cone_sum = float(in_cone.sum())
-            
-            inlet_count[env_idx] = in_inlet_sum
-            cone_count[env_idx] = in_cone_sum
-            valid_in_cone_ratio[env_idx] = in_cone_sum / float(valid_count)
-            valid_in_inlet_ratio[env_idx] = in_inlet_sum / float(valid_count)
+            valid_in_cone_ratio[env_idx] = float(in_cone.sum()) / float(valid_count)
+            valid_in_inlet_ratio[env_idx] = float(in_inlet.sum()) / float(valid_count)
 
             if apply_suction_env and remove_mask.any():
                 absorbed_delta[env_idx] = float(
@@ -128,10 +118,8 @@ class SuctionControllerNoTimer:
 
         return {
             "absorbed_delta": absorbed_delta,
-            "min_dist": min_dist,
-            "inlet_count": inlet_count,
-            "cone_count": cone_count,
-            "blood_centroid_w": blood_centroid_w,
+            "nearest_particle_w": nearest_particle_w,
+            "nearest_particle_distance": nearest_particle_distance,
             "valid_in_cone_ratio": valid_in_cone_ratio,
             "valid_in_inlet_ratio": valid_in_inlet_ratio,
         }

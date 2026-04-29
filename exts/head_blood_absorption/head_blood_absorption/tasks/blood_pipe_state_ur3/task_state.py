@@ -10,11 +10,9 @@ import torch
 class ParticleTaskState:
     absorbed_delta: torch.Tensor
     absorbed_count: torch.Tensor
-    absorbed_delta_ema: torch.Tensor
-    blood_centroid: torch.Tensor
-    prev_blood_centroid: torch.Tensor
-    blood_centroid_distance: torch.Tensor
-    prev_blood_centroid_distance: torch.Tensor
+    nearest_particle: torch.Tensor
+    nearest_particle_distance: torch.Tensor
+    prev_nearest_particle_distance: torch.Tensor
     valid_in_cone_ratio: torch.Tensor
     valid_in_inlet_ratio: torch.Tensor
 
@@ -27,20 +25,15 @@ class ParticleRewardInputs:
 
 class ParticleTaskTracker:
     def __init__(self, cfg, num_envs: int, device: torch.device | str):
-        self.cfg = cfg
         self._num_envs = int(num_envs)
         self.device = torch.device(device)
-
-        self._ema_alpha = float(self.cfg.absorbed_delta_ema_alpha)
 
         self.state = ParticleTaskState(
             absorbed_delta=self._zeros(),
             absorbed_count=self._zeros(),
-            absorbed_delta_ema=self._zeros(),
-            blood_centroid=self._zeros((self._num_envs, 3)),
-            prev_blood_centroid=self._zeros((self._num_envs, 3)),
-            blood_centroid_distance=self._zeros(),
-            prev_blood_centroid_distance=self._zeros(),
+            nearest_particle=self._zeros((self._num_envs, 3)),
+            nearest_particle_distance=self._zeros(),
+            prev_nearest_particle_distance=self._zeros(),
             valid_in_cone_ratio=self._zeros(),
             valid_in_inlet_ratio=self._zeros(),
         )
@@ -68,19 +61,17 @@ class ParticleTaskTracker:
         )
         self.state.absorbed_delta[:] = absorbed_delta
         self.state.absorbed_count += absorbed_delta
-        self.state.absorbed_delta_ema.mul_(1.0 - self._ema_alpha).add_(
-            self._ema_alpha * absorbed_delta
-        )
 
-        # Update centroid and ratios
-        prev_centroid = self.state.blood_centroid.clone()
-        prev_distance = self.state.blood_centroid_distance.clone()
-        self.state.prev_blood_centroid.copy_(prev_centroid)
-        self.state.prev_blood_centroid_distance.copy_(prev_distance)
+        # Update nearest-particle target and ratios.
+        prev_distance = self.state.nearest_particle_distance.clone()
+        self.state.prev_nearest_particle_distance.copy_(prev_distance)
 
         step_count_np = self._to_numpy(step_count).astype(np.int64, copy=False)
 
-        centroid_w = torch.from_numpy(particle_stats["blood_centroid_w"]).to(
+        nearest_particle_w = torch.from_numpy(particle_stats["nearest_particle_w"]).to(
+            device=self.device, dtype=torch.float32
+        )
+        nearest_distance = torch.from_numpy(particle_stats["nearest_particle_distance"]).to(
             device=self.device, dtype=torch.float32
         )
         in_cone_ratio = torch.from_numpy(particle_stats["valid_in_cone_ratio"]).to(
@@ -90,11 +81,8 @@ class ParticleTaskTracker:
             device=self.device, dtype=torch.float32
         )
 
-        # Compute current distances (using tensor operations purely)
-        current_distance = torch.linalg.vector_norm(centroid_w - tip_pos_w, dim=1)
-
-        self.state.blood_centroid[:] = centroid_w
-        self.state.blood_centroid_distance[:] = current_distance
+        self.state.nearest_particle[:] = nearest_particle_w
+        self.state.nearest_particle_distance[:] = nearest_distance
         self.state.valid_in_cone_ratio[:] = in_cone_ratio
         self.state.valid_in_inlet_ratio[:] = in_inlet_ratio
 
@@ -102,18 +90,15 @@ class ParticleTaskTracker:
         reset_mask = torch.tensor(
             step_count_np <= 0, device=self.device, dtype=torch.bool
         )
-        self.state.prev_blood_centroid[reset_mask] = centroid_w[reset_mask]
-        self.state.prev_blood_centroid_distance[reset_mask] = current_distance[
+        self.state.prev_nearest_particle_distance[reset_mask] = nearest_distance[
             reset_mask
         ]
 
     def reset(self, env_ids: torch.Tensor, tip_pos_w: torch.Tensor) -> None:
         self.state.absorbed_delta[env_ids] = 0.0
         self.state.absorbed_count[env_ids] = 0.0
-        self.state.absorbed_delta_ema[env_ids] = 0.0
-        self.state.blood_centroid_distance[env_ids] = 0.0
-        self.state.prev_blood_centroid_distance[env_ids] = 0.0
+        self.state.nearest_particle_distance[env_ids] = 0.0
+        self.state.prev_nearest_particle_distance[env_ids] = 0.0
         self.state.valid_in_cone_ratio[env_ids] = 0.0
         self.state.valid_in_inlet_ratio[env_ids] = 0.0
-        self.state.blood_centroid[env_ids] = tip_pos_w[env_ids]
-        self.state.prev_blood_centroid[env_ids] = tip_pos_w[env_ids]
+        self.state.nearest_particle[env_ids] = tip_pos_w[env_ids]
