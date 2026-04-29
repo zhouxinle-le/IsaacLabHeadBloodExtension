@@ -227,12 +227,12 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     pipe_action_scale_radial = 0.0008
     pipe_action_scale_axial = 0.0012
 
-    ur3_tip_body_name = "suction_tip"
+    ur3_tip_body_name = "tip_link"
     ur3_collision_body_names_expr = (
         "(shoulder_link|upper_arm_link|forearm_link|wrist_1_link|wrist_2_link|wrist_3_link|"
         "gripper_base_link|gripper_extension_link|suction_tip)"
     )
-    ur3_tip_local_offset = (0.0, -0.00423, 0.0)
+    ur3_tip_local_offset = (0.0, 0.0, 0.0)
     ur3_tip_local_axis = (0.0, -1.0, 0.0)
     tip_contact_force_threshold = 0.5
     suction_cone_half_angle_deg = 60.0
@@ -1207,8 +1207,11 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._episode_reward_sums["time_penalty"] -= reward_terms["time_penalty"]
         self._episode_reward_sums["task_complete"] += reward_terms["task_complete"]
 
-        tip_pos_w, _ = self._compute_tip_pose_and_direction_w()
+        tip_pos_w, tip_dir_w = self._compute_tip_pose_and_direction_w()
         _, _, tip_clearance = self._compute_pipe_clearance(tip_pos_w)
+        tip_goal_error = torch.linalg.vector_norm(self._ee_goal_pos_w - tip_pos_w, dim=1)
+        tip_dir_pipe = self._world_dir_to_pipe(tip_dir_w)
+        tip_pipe_axis_alignment = torch.abs(tip_dir_pipe[:, 2])
         absorption_complete = task_state.absorbed_count >= self._success_threshold
         self.extras["log"] = {
             "Metrics/absorbed_count": task_state.absorbed_count.mean(),
@@ -1231,6 +1234,9 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "Metrics/ur3_contact_force_max": ur3_contact_force.max(),
             "Metrics/tip_pipe_clearance_mean": tip_clearance.mean(),
             "Metrics/tip_pipe_clearance_min": tip_clearance.min(),
+            "Metrics/tip_goal_error_mean": tip_goal_error.mean(),
+            "Metrics/tip_goal_error_max": tip_goal_error.max(),
+            "Metrics/tip_pipe_axis_alignment": tip_pipe_axis_alignment.mean(),
             "Metrics/absorption_complete_rate": absorption_complete.float().mean(),
             "Metrics/success_rate": absorption_complete.float().mean(),
         }
