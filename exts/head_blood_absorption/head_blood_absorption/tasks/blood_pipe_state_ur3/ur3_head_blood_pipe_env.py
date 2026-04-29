@@ -39,7 +39,7 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     decimation = 2
     action_space = 3
     state_space = 0
-    observation_space = 23
+    observation_space = 13
 
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 300,
@@ -1077,14 +1077,11 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
     def _build_observation_from_task_state(
         self,
         tip_pos_w: torch.Tensor,
-        tip_dir_w: torch.Tensor,
         contact_force: torch.Tensor,
     ) -> torch.Tensor:
         task_state = self._particle_state
         tip_pose_features, tip_pos_pipe = self._build_pipe_pose_features(tip_pos_w)
-        blood_pose_features, blood_pos_pipe = self._build_pipe_pose_features(task_state.blood_centroid)
-        tip_dir_pipe = self._world_dir_to_pipe(tip_dir_w)
-        tip_dir_pipe = tip_dir_pipe / torch.linalg.vector_norm(tip_dir_pipe, dim=1, keepdim=True).clamp_min(1.0e-9)
+        blood_pos_pipe = self._world_to_pipe_pos(task_state.blood_centroid)
 
         pipe_scale = torch.tensor(
             (
@@ -1104,16 +1101,9 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             min=0.0,
             max=1.0,
         ).unsqueeze(1)
-        absorbed_delta_ema = torch.tanh(task_state.absorbed_delta_ema).unsqueeze(1)
-        valid_in_cone_ratio = torch.clamp(task_state.valid_in_cone_ratio, min=0.0, max=1.0).unsqueeze(1)
         valid_in_inlet_ratio = torch.clamp(task_state.valid_in_inlet_ratio, min=0.0, max=1.0).unsqueeze(1)
         contact_ratio = torch.clamp(
             contact_force / max(float(self.cfg.severe_contact_force_threshold), 1.0e-6),
-            min=0.0,
-            max=1.0,
-        ).unsqueeze(1)
-        step_ratio = torch.clamp(
-            self._step_count.to(dtype=torch.float32) / max(float(self.max_episode_length), 1.0),
             min=0.0,
             max=1.0,
         ).unsqueeze(1)
@@ -1121,16 +1111,11 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         return torch.cat(
             (
                 tip_pose_features,
-                tip_dir_pipe,
-                blood_pose_features,
                 blood_centroid_rel_normalized,
                 goal_error_normalized,
-                valid_in_cone_ratio,
                 valid_in_inlet_ratio,
                 absorbed_ratio,
-                absorbed_delta_ema,
                 contact_ratio,
-                step_ratio,
             ),
             dim=1,
         )
@@ -1138,14 +1123,14 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
     def _update_low_dim_observation(self) -> None:
         self._refresh_post_step_task_state()
 
-        tip_pos_w, tip_dir_w = self._compute_tip_pose_and_direction_w()
+        tip_pos_w, _ = self._compute_tip_pose_and_direction_w()
         reset_goal_mask = self._step_count <= 0
         if torch.any(reset_goal_mask):
             tip_pos_pipe = self._world_to_pipe_pos(tip_pos_w)
             clamped_tip_goal_w = self._pipe_to_world_pos(self._clamp_pipe_position(tip_pos_pipe))
             self._ee_goal_pos_w[reset_goal_mask] = clamped_tip_goal_w[reset_goal_mask]
         ur3_contact_force = self._get_ur3_contact_force()
-        self._obs_state[:] = self._build_observation_from_task_state(tip_pos_w, tip_dir_w, ur3_contact_force)
+        self._obs_state[:] = self._build_observation_from_task_state(tip_pos_w, ur3_contact_force)
 
     def _compute_termination_flags(
         self, contact_force: torch.Tensor
