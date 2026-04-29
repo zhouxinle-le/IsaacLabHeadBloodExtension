@@ -1144,8 +1144,8 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             tip_pos_pipe = self._world_to_pipe_pos(tip_pos_w)
             clamped_tip_goal_w = self._pipe_to_world_pos(self._clamp_pipe_position(tip_pos_pipe))
             self._ee_goal_pos_w[reset_goal_mask] = clamped_tip_goal_w[reset_goal_mask]
-        tip_contact_force = self._get_tip_contact_force()
-        self._obs_state[:] = self._build_observation_from_task_state(tip_pos_w, tip_dir_w, tip_contact_force)
+        ur3_contact_force = self._get_ur3_contact_force()
+        self._obs_state[:] = self._build_observation_from_task_state(tip_pos_w, tip_dir_w, ur3_contact_force)
 
     def _compute_termination_flags(
         self, contact_force: torch.Tensor
@@ -1216,7 +1216,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         action_penalty = self.cfg.reward_action_weight * torch.sum(reward_inputs.raw_actions**2, dim=1)
 
         safe_contact_force = torch.log1p(torch.clamp(reward_inputs.contact_force, min=0.0))
-        safe_contact_threshold = math.log1p(float(self.cfg.tip_contact_force_threshold))
+        safe_contact_threshold = math.log1p(float(self.cfg.severe_contact_force_threshold))
         collision_force_penalty = self.cfg.reward_collision_force_weight * torch.clamp(
             safe_contact_force - safe_contact_threshold,
             min=0.0,
@@ -1269,7 +1269,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         reward_terms = self._compute_reward_terms(
             ParticleRewardInputs(
                 raw_actions=self._raw_actions,
-                contact_force=raw_contact_force,
+                contact_force=ur3_contact_force,
             )
         )
         task_state = self._particle_state
