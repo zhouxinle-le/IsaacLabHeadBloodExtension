@@ -104,8 +104,8 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     )
     table_pos = Gf.Vec3f(0.0, 0.0, 0.457)
     table_height_offset = 0.914
-    ur3_init_pos = (0.1, -0.285, 1.20)
-    ur3_base_block_size = (0.30, 0.30, 1.20-0.914)
+    ur3_init_pos = (0.115, -0.22, 1.05)
+    ur3_base_block_size = (0.30, 0.30, ur3_init_pos[2] - table_height_offset)
     ur3_base_block_color = (0.32, 0.32, 0.32)
 
     ur3_base_block = RigidObjectCfg(
@@ -175,7 +175,7 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     ur3_robot = ArticulationCfg(
         prim_path="/World/envs/env_.*/UR3",
         spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ASSET_PATH}/ur3_with_suction.usd",
+            usd_path=f"{ASSET_PATH}/ur3_robot_with_suction.usd",
             activate_contact_sensors=True,
             rigid_props=sim_utils.RigidBodyPropertiesCfg(
                 disable_gravity=False,
@@ -189,12 +189,12 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
         ),
         init_state=ArticulationCfg.InitialStateCfg(
             joint_pos={
-                "shoulder_pan_joint": -1.589,
-                "shoulder_lift_joint": -0.634,
-                "elbow_joint": 1.075,
-                "wrist_1_joint": 3.889,
-                "wrist_2_joint": -1.589,
-                "wrist_3_joint": 0.148,
+                "shoulder_pan_joint": 1.5707349409317704,
+                "shoulder_lift_joint": -0.8259944589482346,
+                "elbow_joint": 1.0760889208613496,
+                "wrist_1_joint": 4.160864830228038,
+                "wrist_2_joint": -1.5707963267948966,
+                "wrist_3_joint": 2.180197809587596e-11,
             },
             pos=ur3_init_pos,
         ),
@@ -227,16 +227,16 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     pipe_action_scale_radial = 0.0008
     pipe_action_scale_axial = 0.0012
 
-    ur3_tip_body_name = "suction_tip"
+    ur3_tip_body_name = "tip_link"
     ur3_tip_marker_auto_sync = True
     ur3_tip_marker_prim_name = "tip_link"
-    ur3_tip_marker_axis_local = (0.0, -1.0, 0.0)
+    ur3_tip_marker_axis_local = (0.0, 1.0, 0.0)
     ur3_collision_body_names_expr = (
         "(shoulder_link|upper_arm_link|forearm_link|wrist_1_link|wrist_2_link|wrist_3_link|"
-        "gripper_base_link|gripper_extension_link|suction_tip)"
+        "suction_base_link|tip_link)"
     )
-    ur3_tip_local_offset = (0.0, -0.00423, 0.0)
-    ur3_tip_local_axis = (0.0, -1.0, 0.0)
+    ur3_tip_local_offset = (0.0, 0.0, 0.0)
+    ur3_tip_local_axis = (0.0, 1.0, 0.0)
     suction_cone_half_angle_deg = 60.0
     suction_cone_range = 0.07
     suction_force_scale = 0.02
