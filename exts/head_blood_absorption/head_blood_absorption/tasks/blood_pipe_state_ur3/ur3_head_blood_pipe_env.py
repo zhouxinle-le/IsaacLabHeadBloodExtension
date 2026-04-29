@@ -82,10 +82,7 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     pipe_blood_template_z_counts = (15, 21) # (15, 21, 28)
     pipe_blood_template_z_start = 0.010
     pipe_blood_template_z_end = 0.045
-    pipe_violation_patience = 2
-    pipe_violation_termination_margin = 0.001
     pipe_wall_clearance_penalty_weight = 0.05
-    pipe_violation_penalty = 10.0
     spawn_pos_fluid = spawn_pos_pipe + Gf.Vec3f(0.039522, -0.052623, 0.07751)
     spawn_pos_glass2 = Gf.Vec3f(0.0, 0.70, 0.01)
     glass2_particle_height = 0.03
@@ -227,8 +224,6 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
         "wrist_2_joint",
         "wrist_3_joint",
     )
-    tool_joint_names = ()
-    action_scale_lin = 0.001
     pipe_action_scale_radial = 0.0008
     pipe_action_scale_axial = 0.0012
 
@@ -240,8 +235,6 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     ur3_tip_local_offset = (0.0, -0.00423, 0.0)
     ur3_tip_local_axis = (0.0, -1.0, 0.0)
     tip_contact_force_threshold = 0.5
-    height_axis = 2
-    height_limit = 0.94
     suction_cone_half_angle_deg = 60.0
     suction_cone_range = 0.07
     suction_force_scale = 0.02
@@ -260,13 +253,11 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     reward_task_complete = 25.0
     reward_collision_force_weight = 0.20
     reward_joint_limit_penalty = 10.0
-    reward_pipe_violation_penalty = pipe_violation_penalty
     absorbed_delta_ema_alpha = 0.2
     severe_contact_force_threshold = 2.0
     severe_contact_patience = 2
 
-    success_absorption_ratio = 0.98
-    blood_success_ratio = success_absorption_ratio
+    blood_success_ratio = 0.98
     joint_limit_termination_tolerance = 1e-3
 
 
@@ -308,7 +299,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "action_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "collision_force_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "wall_clearance_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
-            "pipe_violation_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "joint_limit_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "time_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "task_complete": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
@@ -317,12 +307,10 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
     def _init_episode_stats(self) -> None:
         self._step_count = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self._severe_contact_counter = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
-        self._pipe_violation_counter = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self._episode_reward_sums = self._build_episode_reward_sums()
         self._episode_success = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._episode_joint_limit = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._episode_severe_collision = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-        self._episode_pipe_violation = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._episode_time_out = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._reward_cache = torch.zeros(self.num_envs, dtype=torch.float32, device=self.device)
         self._terminated_cache = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
@@ -349,10 +337,8 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         joint_names = list(self._ur3.data.joint_names)
         joint_name_to_idx = {name: idx for idx, name in enumerate(joint_names)}
         self._ik_joint_ids = [joint_name_to_idx[name] for name in self.cfg.ik_joint_names]
-        self._tool_joint_ids = [joint_name_to_idx[name] for name in self.cfg.tool_joint_names]
         self._ik_joint_lower_limits = self._joint_lower_limits[self._ik_joint_ids]
         self._ik_joint_upper_limits = self._joint_upper_limits[self._ik_joint_ids]
-        self._tool_joint_default_pos = self._ur3.data.default_joint_pos[0, self._tool_joint_ids].clone()
         self._joint_pos_des = self._ur3.data.default_joint_pos[:, self._ik_joint_ids].clone()
 
         self._ur3_body_name_to_idx, self._ur3_body_name_to_path = self._build_ur3_body_lookup()
@@ -599,15 +585,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         clearance = float(self.cfg.pipe_inner_radius) - radial
         return pos_pipe, radial, clearance
 
-    def _compute_pipe_violation(self, pos_w: torch.Tensor) -> torch.Tensor:
-        pos_pipe, _, clearance = self._compute_pipe_clearance(pos_w)
-        margin = float(self.cfg.pipe_violation_termination_margin)
-        return (
-            (pos_pipe[:, 2] < -margin)
-            | (pos_pipe[:, 2] > float(self.cfg.pipe_length) + margin)
-            | (clearance < -margin)
-        )
-
     def _get_blood_template_capture_path(self) -> str:
         template_name = str(self.cfg.save_blood_init_template_name)
         if not template_name.endswith(".pt"):
@@ -853,9 +830,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
 
     def _apply_action(self):
         self._ur3.set_joint_position_target(self._joint_pos_des, joint_ids=self._ik_joint_ids)
-        if len(self._tool_joint_ids) > 0:
-            tool_targets = self._tool_joint_default_pos.unsqueeze(0).expand(self.num_envs, -1)
-            self._ur3.set_joint_position_target(tool_targets, joint_ids=self._tool_joint_ids)
 
     def _register_ur3_contact_sensors(self) -> None:
         tip_body_path = self._ur3_body_name_to_path.get(self.cfg.ur3_tip_body_name)
@@ -1107,7 +1081,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
 
     def _compute_termination_flags(
         self, contact_force: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, dict[str, torch.Tensor]]:
         task_state = self._particle_state
         ik_joint_pos = self._ur3.data.joint_pos[:, self._ik_joint_ids]
         tolerance = float(self.cfg.joint_limit_termination_tolerance)
@@ -1124,29 +1098,19 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             torch.zeros_like(self._severe_contact_counter),
         )
         severe_collision = next_counter >= int(self.cfg.severe_contact_patience)
-        tip_pos_w, _ = self._compute_tip_pose_and_direction_w()
-        pipe_violation_now = self._compute_pipe_violation(tip_pos_w)
-        next_pipe_counter = torch.where(
-            pipe_violation_now,
-            self._pipe_violation_counter + 1,
-            torch.zeros_like(self._pipe_violation_counter),
-        )
-        pipe_violation = next_pipe_counter >= int(self.cfg.pipe_violation_patience)
         absorption_complete = task_state.absorbed_count >= self._success_threshold
-        success = absorption_complete & (~joint_limit_reached) & (~severe_collision) & (~pipe_violation)
+        success = absorption_complete & (~joint_limit_reached) & (~severe_collision)
 
-        # terminated = success | joint_limit_reached | severe_collision | pipe_violation
         terminated = success | severe_collision
         truncated = self.episode_length_buf >= self.max_episode_length - 1
         flags = {
             "success": success,
             "joint_limit": joint_limit_reached,
             "severe_collision": severe_collision,
-            "pipe_violation": pipe_violation,
             "absorption_complete": absorption_complete,
             "time_out": truncated,
         }
-        return terminated, truncated, next_counter, next_pipe_counter, flags
+        return terminated, truncated, next_counter, flags
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         if not self._done_cache_dirty:
@@ -1155,11 +1119,9 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         if self._capture_blood_template_enabled:
             self._refresh_post_step_task_state()
             self._severe_contact_counter.zero_()
-            self._pipe_violation_counter.zero_()
             self._episode_success[:] = False
             self._episode_joint_limit[:] = False
             self._episode_severe_collision[:] = False
-            self._episode_pipe_violation[:] = False
             self._episode_time_out[:] = False
             self._terminated_cache[:] = False
             self._truncated_cache[:] = False
@@ -1169,13 +1131,11 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._refresh_post_step_task_state()
 
         ur3_contact_force = self._get_ur3_contact_force()
-        terminated, truncated, next_counter, next_pipe_counter, flags = self._compute_termination_flags(ur3_contact_force)
+        terminated, truncated, next_counter, flags = self._compute_termination_flags(ur3_contact_force)
         self._severe_contact_counter[:] = next_counter
-        self._pipe_violation_counter[:] = next_pipe_counter
         self._episode_success[:] = flags["success"]
         self._episode_joint_limit[:] = flags["joint_limit"]
         self._episode_severe_collision[:] = flags["severe_collision"]
-        self._episode_pipe_violation[:] = flags["pipe_violation"]
         self._episode_time_out[:] = flags["time_out"]
         self._terminated_cache[:] = terminated
         self._truncated_cache[:] = truncated
@@ -1211,10 +1171,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             (clearance_margin - tip_clearance) / clearance_margin,
             min=0.0,
         )
-        pipe_violation_now = self._compute_pipe_violation(tip_pos_w)
-        pipe_violation_penalty = float(self.cfg.reward_pipe_violation_penalty) * (
-            pipe_violation_now | self._episode_pipe_violation
-        ).float()
         joint_limit_penalty = float(self.cfg.reward_joint_limit_penalty) * (
             self._episode_joint_limit & (~self._episode_success)
         ).float()
@@ -1226,8 +1182,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             device=self.device,
         )
         absorption_complete = task_state.absorbed_count >= self._success_threshold
-        safe_absorption_complete = absorption_complete & (~pipe_violation_now)
-        task_complete = self.cfg.reward_task_complete * safe_absorption_complete.float()
+        task_complete = self.cfg.reward_task_complete * absorption_complete.float()
         total_reward = (
             task_complete
             + absorb_reward
@@ -1235,7 +1190,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             - action_penalty
             - collision_force_penalty
             - wall_clearance_penalty
-            - pipe_violation_penalty
             - joint_limit_penalty
             - time_penalty
         ).float()
@@ -1246,7 +1200,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "action_penalty": action_penalty,
             "collision_force_penalty": collision_force_penalty,
             "wall_clearance_penalty": wall_clearance_penalty,
-            "pipe_violation_penalty": pipe_violation_penalty,
             "joint_limit_penalty": joint_limit_penalty,
             "time_penalty": time_penalty,
             "task_complete": task_complete,
@@ -1274,14 +1227,12 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._episode_reward_sums["action_penalty"] -= reward_terms["action_penalty"]
         self._episode_reward_sums["collision_force_penalty"] -= reward_terms["collision_force_penalty"]
         self._episode_reward_sums["wall_clearance_penalty"] -= reward_terms["wall_clearance_penalty"]
-        self._episode_reward_sums["pipe_violation_penalty"] -= reward_terms["pipe_violation_penalty"]
         self._episode_reward_sums["joint_limit_penalty"] -= reward_terms["joint_limit_penalty"]
         self._episode_reward_sums["time_penalty"] -= reward_terms["time_penalty"]
         self._episode_reward_sums["task_complete"] += reward_terms["task_complete"]
 
         tip_pos_w, _ = self._compute_tip_pose_and_direction_w()
         _, _, tip_clearance = self._compute_pipe_clearance(tip_pos_w)
-        pipe_violation = self._compute_pipe_violation(tip_pos_w)
         absorption_complete = task_state.absorbed_count >= self._success_threshold
         self.extras["log"] = {
             "Metrics/absorbed_count": task_state.absorbed_count.mean(),
@@ -1304,9 +1255,8 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "Metrics/ur3_contact_force_max": ur3_contact_force.max(),
             "Metrics/tip_pipe_clearance_mean": tip_clearance.mean(),
             "Metrics/tip_pipe_clearance_min": tip_clearance.min(),
-            "Metrics/pipe_violation_rate": pipe_violation.float().mean(),
             "Metrics/absorption_complete_rate": absorption_complete.float().mean(),
-            "Metrics/success_rate": (absorption_complete & (~pipe_violation)).float().mean(),
+            "Metrics/success_rate": absorption_complete.float().mean(),
         }
 
         self._reward_cache[:] = reward_terms["total_reward"]
@@ -1332,24 +1282,16 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             & (~joint_limit_mask)
             & self._episode_severe_collision[finished_env_ids]
         )
-        pipe_violation_mask = (
-            (~success_mask)
-            & (~joint_limit_mask)
-            & (~severe_collision_mask)
-            & self._episode_pipe_violation[finished_env_ids]
-        )
         time_out_mask = (
             (~success_mask)
             & (~joint_limit_mask)
             & (~severe_collision_mask)
-            & (~pipe_violation_mask)
             & self._episode_time_out[finished_env_ids]
         )
         termination_logs = {
             "Episode_Termination/success": success_mask.float().mean(),
             "Episode_Termination/joint_limit": joint_limit_mask.float().mean(),
             "Episode_Termination/severe_collision": severe_collision_mask.float().mean(),
-            "Episode_Termination/pipe_violation": pipe_violation_mask.float().mean(),
             "Episode_Termination/time_out": time_out_mask.float().mean(),
         }
         self.extras["log"].update(reward_logs)
@@ -1369,7 +1311,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             self._episode_success[env_ids]
             | self._episode_joint_limit[env_ids]
             | self._episode_severe_collision[env_ids]
-            | self._episode_pipe_violation[env_ids]
             | self._episode_time_out[env_ids]
         )
         self._flush_episode_logs(env_ids[finished_mask])
@@ -1393,13 +1334,11 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._suction_controller.reset(env_ids.tolist())
         self._step_count[env_ids] = 0
         self._severe_contact_counter[env_ids] = 0
-        self._pipe_violation_counter[env_ids] = 0
         for values in self._episode_reward_sums.values():
             values[env_ids] = 0.0
         self._episode_success[env_ids] = False
         self._episode_joint_limit[env_ids] = False
         self._episode_severe_collision[env_ids] = False
-        self._episode_pipe_violation[env_ids] = False
         self._episode_time_out[env_ids] = False
         self._raw_actions[env_ids] = 0.0
         self._ik_commands[env_ids] = 0.0
