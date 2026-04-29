@@ -30,8 +30,7 @@ class SuctionControllerNoTimer:
         num_envs = self._num_envs
 
         absorbed_delta = np.zeros((num_envs,), dtype=np.float32)
-        nearest_particle_w = np.zeros((num_envs, 3), dtype=np.float32)
-        nearest_particle_distance = np.full((num_envs,), float(self.cfg.suction_cone_range), dtype=np.float32)
+        blood_centroid_w = np.zeros((num_envs, 3), dtype=np.float32)
         valid_in_cone_ratio = np.zeros((num_envs,), dtype=np.float32)
         valid_in_inlet_ratio = np.zeros((num_envs,), dtype=np.float32)
 
@@ -47,7 +46,7 @@ class SuctionControllerNoTimer:
             tip_pos = tip_pos_local_np[env_idx]
             tip_dir = tip_dir_w_np[env_idx]
             
-            nearest_particle_w[env_idx] = tip_pos + env_origins_np[env_idx]
+            blood_centroid_w[env_idx] = tip_pos + env_origins_np[env_idx]
 
             particles_pos, particles_vel = liquid.read_particles(env_idx)
             if len(particles_pos) == 0:
@@ -61,7 +60,10 @@ class SuctionControllerNoTimer:
             if not valid_mask.any():
                 continue
 
-            valid_count = max(int(valid_mask.sum()), 1)
+            valid_positions = particles_pos[valid_mask]
+            centroid_local = valid_positions.mean(axis=0)
+            blood_centroid_w[env_idx] = centroid_local + env_origins_np[env_idx]
+            valid_count = max(valid_positions.shape[0], 1)
 
             relative_positions, distances, axial_depth, radial_distance = compute_particle_relation(
                 particles_pos,
@@ -69,10 +71,6 @@ class SuctionControllerNoTimer:
                 tip_dir,
                 epsilon,
             )
-            valid_indices = np.flatnonzero(valid_mask)
-            nearest_local_idx = int(valid_indices[np.argmin(distances[valid_mask])])
-            nearest_particle_distance[env_idx] = float(distances[nearest_local_idx])
-            nearest_particle_w[env_idx] = particles_pos[nearest_local_idx] + env_origins_np[env_idx]
             in_cone, in_inlet = compute_cone_and_inlet_masks(
                 distances=distances,
                 axial_depth=axial_depth,
@@ -118,8 +116,7 @@ class SuctionControllerNoTimer:
 
         return {
             "absorbed_delta": absorbed_delta,
-            "nearest_particle_w": nearest_particle_w,
-            "nearest_particle_distance": nearest_particle_distance,
+            "blood_centroid_w": blood_centroid_w,
             "valid_in_cone_ratio": valid_in_cone_ratio,
             "valid_in_inlet_ratio": valid_in_inlet_ratio,
         }

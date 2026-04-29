@@ -39,7 +39,7 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     decimation = 2
     action_space = 3
     state_space = 0
-    observation_space = 16
+    observation_space = 23
 
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 300,
@@ -242,19 +242,20 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     suction_cone_range = 0.07
     suction_force_scale = 0.02
     suction_epsilon = 1e-6
-    inlet_radius = 0.003  # 0.008
-    inlet_depth = 0.004
+    inlet_radius = 0.004  # 0.008
+    inlet_depth = 0.006
     use_body_quat_for_tip_dir = True
     outflow_speed = 0.02
     max_particle_speed = 0.4
 
     reward_absorb_weight = 75.0
-    target_progress_weight = 50.0
-    target_progress_clip = 0.02
+    centroid_progress_weight = 100.0
+    centroid_progress_clip = 0.02
     reward_action_weight = 0.02
     reward_time_penalty = 0.01
     reward_task_complete = 25.0
     reward_collision_force_weight = 0.20
+    absorbed_delta_ema_alpha = 0.2
     severe_contact_force_threshold = 2.0
     severe_contact_patience = 2
 
@@ -295,7 +296,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
     def _build_episode_reward_sums(self) -> dict[str, torch.Tensor]:
         return {
             "absorb_reward": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
-            "target_progress_reward": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
+            "centroid_progress_reward": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "action_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "collision_force_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "wall_clearance_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
@@ -1081,7 +1082,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
     ) -> torch.Tensor:
         task_state = self._particle_state
         tip_pose_features, tip_pos_pipe = self._build_pipe_pose_features(tip_pos_w)
-        target_pos_pipe = self._world_to_pipe_pos(task_state.nearest_particle)
+        blood_pose_features, blood_pos_pipe = self._build_pipe_pose_features(task_state.blood_centroid)
         tip_dir_pipe = self._world_dir_to_pipe(tip_dir_w)
         tip_dir_pipe = tip_dir_pipe / torch.linalg.vector_norm(tip_dir_pipe, dim=1, keepdim=True).clamp_min(1.0e-9)
 
@@ -1094,7 +1095,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             dtype=torch.float32,
             device=self.device,
         )
-        target_rel_normalized = torch.clamp((target_pos_pipe - tip_pos_pipe) / pipe_scale, -1.0, 1.0)
+        blood_centroid_rel_normalized = torch.clamp((blood_pos_pipe - tip_pos_pipe) / pipe_scale, -1.0, 1.0)
         goal_pos_pipe = self._world_to_pipe_pos(self._ee_goal_pos_w)
         goal_error_normalized = torch.clamp((goal_pos_pipe - tip_pos_pipe) / pipe_scale, -1.0, 1.0)
 
@@ -1103,9 +1104,16 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             min=0.0,
             max=1.0,
         ).unsqueeze(1)
+        absorbed_delta_ema = torch.tanh(task_state.absorbed_delta_ema).unsqueeze(1)
+        valid_in_cone_ratio = torch.clamp(task_state.valid_in_cone_ratio, min=0.0, max=1.0).unsqueeze(1)
         valid_in_inlet_ratio = torch.clamp(task_state.valid_in_inlet_ratio, min=0.0, max=1.0).unsqueeze(1)
         contact_ratio = torch.clamp(
             contact_force / max(float(self.cfg.severe_contact_force_threshold), 1.0e-6),
+            min=0.0,
+            max=1.0,
+        ).unsqueeze(1)
+        step_ratio = torch.clamp(
+            self._step_count.to(dtype=torch.float32) / max(float(self.max_episode_length), 1.0),
             min=0.0,
             max=1.0,
         ).unsqueeze(1)
@@ -1114,11 +1122,15 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             (
                 tip_pose_features,
                 tip_dir_pipe,
-                target_rel_normalized,
+                blood_pose_features,
+                blood_centroid_rel_normalized,
                 goal_error_normalized,
+                valid_in_cone_ratio,
                 valid_in_inlet_ratio,
                 absorbed_ratio,
+                absorbed_delta_ema,
                 contact_ratio,
+                step_ratio,
             ),
             dim=1,
         )
@@ -1194,12 +1206,12 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         absorbed_frac_delta = task_state.absorbed_delta / success_threshold
         absorb_reward = self.cfg.reward_absorb_weight * absorbed_frac_delta
 
-        target_progress = torch.clamp(
-            task_state.prev_nearest_particle_distance - task_state.nearest_particle_distance,
-            min=-float(self.cfg.target_progress_clip),
-            max=float(self.cfg.target_progress_clip),
+        centroid_progress = torch.clamp(
+            task_state.prev_blood_centroid_distance - task_state.blood_centroid_distance,
+            min=-float(self.cfg.centroid_progress_clip),
+            max=float(self.cfg.centroid_progress_clip),
         )
-        target_progress_reward = self.cfg.target_progress_weight * target_progress
+        centroid_progress_reward = self.cfg.centroid_progress_weight * centroid_progress
 
         action_penalty = self.cfg.reward_action_weight * torch.sum(reward_inputs.raw_actions**2, dim=1)
 
@@ -1228,7 +1240,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         total_reward = (
             task_complete
             + absorb_reward
-            + target_progress_reward
+            + centroid_progress_reward
             - action_penalty
             - collision_force_penalty
             - wall_clearance_penalty
@@ -1237,7 +1249,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
 
         return {
             "absorb_reward": absorb_reward,
-            "target_progress_reward": target_progress_reward,
+            "centroid_progress_reward": centroid_progress_reward,
             "action_penalty": action_penalty,
             "collision_force_penalty": collision_force_penalty,
             "wall_clearance_penalty": wall_clearance_penalty,
@@ -1263,7 +1275,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         task_state = self._particle_state
 
         self._episode_reward_sums["absorb_reward"] += reward_terms["absorb_reward"]
-        self._episode_reward_sums["target_progress_reward"] += reward_terms["target_progress_reward"]
+        self._episode_reward_sums["centroid_progress_reward"] += reward_terms["centroid_progress_reward"]
         self._episode_reward_sums["action_penalty"] -= reward_terms["action_penalty"]
         self._episode_reward_sums["collision_force_penalty"] -= reward_terms["collision_force_penalty"]
         self._episode_reward_sums["wall_clearance_penalty"] -= reward_terms["wall_clearance_penalty"]
@@ -1284,12 +1296,13 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
                 min=0.0,
                 max=1.0,
             ).mean(),
-            "Metrics/nearest_particle_distance": task_state.nearest_particle_distance.mean(),
+            "Metrics/blood_centroid_distance": task_state.blood_centroid_distance.mean(),
             "Metrics/initial_particle_count": self._initial_particle_count.mean(),
             "Metrics/success_threshold": self._success_threshold.mean(),
             "Metrics/blood_template_index": self._blood_template_index.to(dtype=torch.float32).mean(),
             "Metrics/valid_in_cone_ratio": task_state.valid_in_cone_ratio.mean(),
             "Metrics/valid_in_inlet_ratio": task_state.valid_in_inlet_ratio.mean(),
+            "Metrics/absorbed_delta_ema": task_state.absorbed_delta_ema.mean(),
             "Metrics/raw_contact_force_mean": raw_contact_force.mean(),
             "Metrics/raw_contact_force_max": raw_contact_force.max(),
             "Metrics/ur3_contact_force_mean": ur3_contact_force.mean(),
