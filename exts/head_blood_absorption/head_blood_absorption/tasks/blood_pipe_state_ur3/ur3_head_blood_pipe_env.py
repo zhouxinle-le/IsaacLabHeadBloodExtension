@@ -76,7 +76,7 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     pipe_axis_local = (0.0, 0.0, 1.0)
     pipe_length = 0.058
     pipe_inner_radius = 0.015
-    pipe_tool_clearance_margin = 0.003
+    pipe_tool_clearance_margin = 0.0045
     pipe_blood_valid_radius = 0.011
     pipe_blood_axis_margin = 0.006
     pipe_blood_template_z_counts = (15, 21) # (15, 21, 28)
@@ -255,7 +255,7 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     reward_task_complete = 25.0
     contact_warning_force_threshold = 0.5
     reward_contact_warning_weight = 0.2
-    reward_severe_collision_penalty = 10.0
+    reward_severe_collision_penalty = 0.0
     severe_contact_force_threshold = 2.0
 
     blood_success_ratio = 0.96
@@ -485,7 +485,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self.cfg.pipe_length = float(metadata["pipe_length"])
         self.cfg.pipe_inner_radius = 0.015 * model_scale
         self.cfg.pipe_blood_valid_radius = 0.011 * model_scale
-        self.cfg.pipe_blood_axis_margin = 0.003 * model_scale
+        self.cfg.pipe_blood_axis_margin = 0.0045 * model_scale
         self.cfg.pipe_blood_template_z_start = 0.010 * model_scale
         self.cfg.pipe_blood_template_z_end = 0.045 * model_scale
         self._pipe_model_parameters_synced = True
