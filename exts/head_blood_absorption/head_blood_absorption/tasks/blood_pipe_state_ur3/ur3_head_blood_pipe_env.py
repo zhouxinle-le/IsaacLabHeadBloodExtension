@@ -25,7 +25,7 @@ from omni.isaac.lab.terrains import TerrainImporterCfg
 from omni.isaac.lab.utils import configclass
 from omni.isaac.lab.utils.math import subtract_frame_transforms
 from omni.physx import acquire_physx_interface
-from pxr import Gf, Usd, UsdGeom
+from pxr import Gf
 
 from .fluid_object import FluidObject, FluidObjectCfg
 from .suction import SuctionControllerNoTimer
@@ -68,21 +68,18 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
 
     # spawn_pos_pipe = Gf.Vec3f(0.0, 0.37, 0.0) + Gf.Vec3f(0.0, 0.0, 0.08) + Gf.Vec3f(-0.041581, 0.0, 0.0)
     spawn_pos_pipe = Gf.Vec3f(0.0, 0.37, 0.0) + Gf.Vec3f(0.0, 0.0, 0.09) + Gf.Vec3f(-0.039522, 0.0, 0.0)
-    pipe_link_local_pos = (0.0398244, -0.033366002, 0.026559601)
-    pipe_link_local_quat = (0.69636397, 0.12278932, 0.12278932, -0.69636397)
-    pipe_model_auto_sync = True
-    pipe_link_prim_name = "pipe_Link"
-    pipe_reference_mesh_length = 0.058088833
+    pipe_link_local_pos = (0.0398244000971, -0.0333660021424, 0.0265596006066)                # 管道几何的局部位姿，手动设置
+    pipe_link_local_quat = (0.696363973229, 0.122789318706, 0.122789318706, -0.696363973229)    # 管道几何的局部位姿，手动设置
     pipe_axis_local = (0.0, 0.0, 1.0)
-    pipe_length = 0.058
-    pipe_inner_radius = 0.015
-    pipe_tool_clearance_margin = 0.0045
-    pipe_blood_valid_radius = 0.011
-    pipe_blood_axis_margin = 0.006
-    pipe_blood_template_z_counts = (15, 21) # (15, 21, 28)
-    pipe_blood_template_z_start = 0.010
-    pipe_blood_template_z_end = 0.045
-    pipe_wall_clearance_penalty_weight = 0.05
+    pipe_length = 0.0697066222752 # 管道几何，长度
+    pipe_inner_radius = 0.012     # 管道几何，内半径
+    pipe_tool_clearance_margin = 0.0045     # 吸取工具与管道之间的安全间隙，作用于奖励函数中的壁面接近惩罚
+    pipe_blood_valid_radius = 0.012         # 血液被认为在管道内的有效半径，作用于奖励函数中的吸取奖励
+    pipe_blood_axis_margin = 0.002          # 血液被认为在管道轴线附近的额外边距，作用于奖励函数中的吸取奖励
+    pipe_blood_template_z_counts = (15, 21) # (15, 21, 28)     # 用于定义血液粒子初始位置模板的 z 轴分布，单位为米，作用于血液粒子初始位置的生成
+    pipe_blood_template_z_start = 0.010                        # 血液粒子初始位置模板的起始 z 轴位置，单位为米，作用于血液粒子初始位置的生成
+    pipe_blood_template_z_end = 0.045                          # 血液粒子初始位置模板的结束 z 轴位置，单位为米，作用于血液粒子初始位置的生成
+    pipe_wall_clearance_penalty_weight = 0.05             # 壁面接近惩罚的权重，作用于奖励函数中的壁面接近惩罚
     spawn_pos_fluid = spawn_pos_pipe + Gf.Vec3f(0.039522, -0.052623, 0.07751)
     spawn_pos_glass2 = Gf.Vec3f(0.0, 0.70, 0.01)
     glass2_particle_height = 0.03
@@ -228,9 +225,6 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     pipe_action_scale_axial = 0.0012
 
     ur3_tip_body_name = "tip_link"
-    ur3_tip_marker_auto_sync = True
-    ur3_tip_marker_prim_name = "tip_link"
-    ur3_tip_marker_axis_local = (0.0, 1.0, 0.0)
     ur3_collision_body_names_expr = (
         "(shoulder_link|upper_arm_link|forearm_link|wrist_1_link|wrist_2_link|wrist_3_link|"
         "suction_base_link|tip_link)"
@@ -255,7 +249,6 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     reward_task_complete = 25.0
     contact_warning_force_threshold = 0.5
     reward_contact_warning_weight = 0.2
-    reward_severe_collision_penalty = 0.0
     severe_contact_force_threshold = 2.0
 
     blood_success_ratio = 0.96
@@ -283,10 +276,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
 
     def _init_scene_runtime_state(self) -> None:
         self._suction_controller = SuctionControllerNoTimer(cfg=self.cfg, num_envs=self.num_envs)
-        self._task_state_dirty = True
-        self._reward_cache_dirty = True
-        self._done_cache_dirty = True
-        self._observation_pending = True
+        self._set_task_state_dirty()
 
     def _init_particle_task_state(self) -> None:
         self._particle_task_tracker = ParticleTaskTracker(num_envs=self.num_envs, device=self.device)
@@ -297,7 +287,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "centroid_progress_reward": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "action_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "contact_warning_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
-            "severe_collision_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "wall_clearance_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "time_penalty": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
             "task_complete": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
@@ -380,198 +369,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         return self._particle_task_tracker.state
 
     @staticmethod
-    def _normalize_quat_tuple(quat_wxyz: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
-        norm = math.sqrt(sum(value * value for value in quat_wxyz))
-        if norm <= 1.0e-9:
-            raise ValueError("Cannot normalize zero-length pipe link quaternion from USD.")
-        return tuple(float(value / norm) for value in quat_wxyz)
-
-    @staticmethod
-    def _find_unique_descendant_by_name(root_prim: Usd.Prim, prim_name: str) -> Usd.Prim:
-        matches = [prim for prim in Usd.PrimRange(root_prim) if prim.GetName() == prim_name]
-        if len(matches) != 1:
-            paths = ", ".join(str(prim.GetPath()) for prim in matches)
-            detail = f" Found matches: {paths}." if paths else ""
-            raise RuntimeError(
-                f"Expected exactly one prim named '{prim_name}' under '{root_prim.GetPath()}'."
-                + detail
-            )
-        return matches[0]
-
-    @staticmethod
-    def _read_pipe_model_metadata(usd_path: str, pipe_link_prim_name: str) -> dict[str, object]:
-        stage = Usd.Stage.Open(usd_path)
-        if stage is None:
-            raise RuntimeError(f"Failed to open pipe USD model at '{usd_path}'.")
-
-        root_prim = stage.GetDefaultPrim()
-        if not root_prim or not root_prim.IsValid():
-            raise RuntimeError(f"Pipe USD model '{usd_path}' does not define a valid default prim.")
-
-        pipe_prim = Ur3BloodPipeAbsorptionEnv._find_unique_descendant_by_name(root_prim, pipe_link_prim_name)
-        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
-        root_to_world = xform_cache.GetLocalToWorldTransform(root_prim)
-        pipe_to_world = xform_cache.GetLocalToWorldTransform(pipe_prim)
-        pipe_to_root = pipe_to_world * root_to_world.GetInverse()
-        pipe_world_to_local = pipe_to_world.GetInverse()
-
-        translation = pipe_to_root.ExtractTranslation()
-        rotation = pipe_to_root.ExtractRotationQuat()
-        rotation_imag = rotation.GetImaginary()
-        pipe_link_quat = Ur3BloodPipeAbsorptionEnv._normalize_quat_tuple(
-            (
-                float(rotation.GetReal()),
-                float(rotation_imag[0]),
-                float(rotation_imag[1]),
-                float(rotation_imag[2]),
-            )
-        )
-
-        points_pipe: list[tuple[float, float, float]] = []
-        mesh_count = 0
-        for prim in Usd.PrimRange(pipe_prim):
-            if prim.GetTypeName() != "Mesh":
-                continue
-            mesh_points = UsdGeom.Mesh(prim).GetPointsAttr().Get()
-            if mesh_points is None:
-                continue
-            mesh_count += 1
-            mesh_to_world = xform_cache.GetLocalToWorldTransform(prim)
-            for point in mesh_points:
-                point_w = mesh_to_world.Transform(
-                    Gf.Vec3d(float(point[0]), float(point[1]), float(point[2]))
-                )
-                point_pipe = pipe_world_to_local.Transform(point_w)
-                points_pipe.append((float(point_pipe[0]), float(point_pipe[1]), float(point_pipe[2])))
-
-        if len(points_pipe) == 0:
-            raise RuntimeError(
-                f"Pipe link prim '{pipe_prim.GetPath()}' in '{usd_path}' does not contain mesh points."
-            )
-
-        pipe_min = tuple(min(point[axis] for point in points_pipe) for axis in range(3))
-        pipe_max = tuple(max(point[axis] for point in points_pipe) for axis in range(3))
-        pipe_length = float(pipe_max[2] - pipe_min[2])
-        if pipe_length <= 1.0e-9:
-            raise RuntimeError(
-                f"Pipe link prim '{pipe_prim.GetPath()}' in '{usd_path}' has non-positive z-axis length."
-            )
-
-        return {
-            "pipe_prim_path": str(pipe_prim.GetPath()),
-            "pipe_link_local_pos": (float(translation[0]), float(translation[1]), float(translation[2])),
-            "pipe_link_local_quat": pipe_link_quat,
-            "pipe_local_min": pipe_min,
-            "pipe_local_max": pipe_max,
-            "pipe_length": pipe_length,
-            "mesh_count": mesh_count,
-            "point_count": len(points_pipe),
-        }
-
-    def _sync_pipe_model_parameters_from_usd(self) -> None:
-        if getattr(self, "_pipe_model_parameters_synced", False):
-            return
-
-        if not bool(getattr(self.cfg, "pipe_model_auto_sync", True)):
-            return
-
-        usd_path = str(self.cfg.pipe.spawn.usd_path)
-        metadata = self._read_pipe_model_metadata(usd_path, str(self.cfg.pipe_link_prim_name))
-        reference_length = max(float(self.cfg.pipe_reference_mesh_length), 1.0e-9)
-        model_scale = float(metadata["pipe_length"]) / reference_length
-
-        self.cfg.pipe_link_local_pos = metadata["pipe_link_local_pos"]
-        self.cfg.pipe_link_local_quat = metadata["pipe_link_local_quat"]
-        self.cfg.pipe_length = float(metadata["pipe_length"])
-        self.cfg.pipe_inner_radius = 0.015 * model_scale
-        self.cfg.pipe_blood_valid_radius = 0.011 * model_scale
-        self.cfg.pipe_blood_axis_margin = 0.0045 * model_scale
-        self.cfg.pipe_blood_template_z_start = 0.010 * model_scale
-        self.cfg.pipe_blood_template_z_end = 0.045 * model_scale
-        self._pipe_model_parameters_synced = True
-
-        message = (
-            "Synced pipe model parameters from "
-            f"'{usd_path}' prim '{metadata['pipe_prim_path']}': "
-            f"length={self.cfg.pipe_length:.9f}, scale={model_scale:.6f}, "
-            f"inner_radius={self.cfg.pipe_inner_radius:.9f}, "
-            f"blood_valid_radius={self.cfg.pipe_blood_valid_radius:.9f}."
-        )
-        print(f"[INFO] {message}", flush=True)
-        carb.log_info(message)
-
-    @staticmethod
-    def _read_tip_marker_metadata(
-        usd_path: str,
-        tip_body_prim_name: str,
-        tip_marker_prim_name: str,
-        marker_axis_local: tuple[float, float, float],
-    ) -> dict[str, object]:
-        stage = Usd.Stage.Open(usd_path)
-        if stage is None:
-            raise RuntimeError(f"Failed to open UR3 USD model at '{usd_path}'.")
-
-        root_prim = stage.GetDefaultPrim()
-        if not root_prim or not root_prim.IsValid():
-            raise RuntimeError(f"UR3 USD model '{usd_path}' does not define a valid default prim.")
-
-        body_prim = Ur3BloodPipeAbsorptionEnv._find_unique_descendant_by_name(root_prim, tip_body_prim_name)
-        marker_prim = Ur3BloodPipeAbsorptionEnv._find_unique_descendant_by_name(root_prim, tip_marker_prim_name)
-
-        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
-        body_to_world = xform_cache.GetLocalToWorldTransform(body_prim)
-        marker_to_world = xform_cache.GetLocalToWorldTransform(marker_prim)
-        marker_to_body = marker_to_world * body_to_world.GetInverse()
-
-        offset = marker_to_body.ExtractTranslation()
-        axis_marker = Gf.Vec3d(
-            float(marker_axis_local[0]),
-            float(marker_axis_local[1]),
-            float(marker_axis_local[2]),
-        )
-        axis_body = marker_to_body.TransformDir(axis_marker)
-        axis_length = math.sqrt(axis_body[0] * axis_body[0] + axis_body[1] * axis_body[1] + axis_body[2] * axis_body[2])
-        if axis_length <= 1.0e-9:
-            raise RuntimeError(f"Tip marker axis for '{tip_marker_prim_name}' has near-zero length.")
-
-        return {
-            "tip_body_prim_path": str(body_prim.GetPath()),
-            "tip_marker_prim_path": str(marker_prim.GetPath()),
-            "tip_local_offset": (float(offset[0]), float(offset[1]), float(offset[2])),
-            "tip_local_axis": (
-                float(axis_body[0] / axis_length),
-                float(axis_body[1] / axis_length),
-                float(axis_body[2] / axis_length),
-            ),
-        }
-
-    def _sync_tip_marker_parameters_from_usd(self) -> None:
-        if getattr(self, "_tip_marker_parameters_synced", False):
-            return
-
-        if not bool(getattr(self.cfg, "ur3_tip_marker_auto_sync", True)):
-            return
-
-        usd_path = str(self.cfg.ur3_robot.spawn.usd_path)
-        metadata = self._read_tip_marker_metadata(
-            usd_path=usd_path,
-            tip_body_prim_name=str(self.cfg.ur3_tip_body_name),
-            tip_marker_prim_name=str(self.cfg.ur3_tip_marker_prim_name),
-            marker_axis_local=tuple(self.cfg.ur3_tip_marker_axis_local),
-        )
-        self.cfg.ur3_tip_local_offset = metadata["tip_local_offset"]
-        self.cfg.ur3_tip_local_axis = metadata["tip_local_axis"]
-        self._tip_marker_parameters_synced = True
-
-        message = (
-            "Synced UR3 tip marker parameters from "
-            f"'{usd_path}' body '{metadata['tip_body_prim_path']}' marker '{metadata['tip_marker_prim_path']}': "
-            f"offset={self.cfg.ur3_tip_local_offset}, axis={self.cfg.ur3_tip_local_axis}."
-        )
-        print(f"[INFO] {message}", flush=True)
-        carb.log_info(message)
-
-    @staticmethod
     def _normalize_quat_torch(quat_wxyz: torch.Tensor) -> torch.Tensor:
         return quat_wxyz / torch.linalg.vector_norm(quat_wxyz, dim=-1, keepdim=True).clamp_min(1.0e-9)
 
@@ -603,15 +400,13 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         pipe_link_pos = torch.tensor(self.cfg.pipe_link_local_pos, dtype=torch.float32, device=self.device)
         pipe_link_quat = torch.tensor(self.cfg.pipe_link_local_quat, dtype=torch.float32, device=self.device)
 
-        self._pipe_root_pos_local = pipe_root_pos
-        self._pipe_root_quat = self._normalize_quat_torch(pipe_root_quat)
-        self._pipe_link_local_pos = pipe_link_pos
-        self._pipe_link_local_quat = self._normalize_quat_torch(pipe_link_quat)
-        self._pipe_pos_local = self._pipe_root_pos_local + self._quat_rotate_torch(
-            self._pipe_root_quat.unsqueeze(0),
-            self._pipe_link_local_pos.unsqueeze(0),
+        pipe_root_quat = self._normalize_quat_torch(pipe_root_quat)
+        pipe_link_quat = self._normalize_quat_torch(pipe_link_quat)
+        self._pipe_pos_local = pipe_root_pos + self._quat_rotate_torch(
+            pipe_root_quat.unsqueeze(0),
+            pipe_link_pos.unsqueeze(0),
         )[0]
-        self._pipe_quat_w = self._multiply_quat_torch(self._pipe_root_quat, self._pipe_link_local_quat)
+        self._pipe_quat_w = self._multiply_quat_torch(pipe_root_quat, pipe_link_quat)
         self._pipe_inv_quat_w = self._invert_quat_torch(self._pipe_quat_w)
 
     def _world_to_pipe_pos(self, pos_w: torch.Tensor) -> torch.Tensor:
@@ -786,9 +581,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._ee_jacobi_idx = self._ur3_entity_cfg.body_ids[0] - 1
 
     def _setup_scene(self):
-        self._sync_pipe_model_parameters_from_usd()
-        self._sync_tip_marker_parameters_from_usd()
-
         physx_interface = acquire_physx_interface()
         physx_interface.overwrite_gpu_setting(1)
 
@@ -1173,7 +965,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         )
         contact_warning_penalty = self.cfg.reward_contact_warning_weight * contact_warning
         severe_contact = reward_inputs.contact_force > severe_threshold
-        severe_collision_penalty = self.cfg.reward_severe_collision_penalty * severe_contact.float()
         tip_pos_w, _ = self._compute_tip_pose_and_direction_w()
         _, _, tip_clearance = self._compute_pipe_clearance(tip_pos_w)
         clearance_margin = max(float(self.cfg.pipe_tool_clearance_margin), 1.0e-6)
@@ -1197,7 +988,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             + centroid_progress_reward
             - action_penalty
             - contact_warning_penalty
-            - severe_collision_penalty
             - wall_clearance_penalty
             - time_penalty
         ).float()
@@ -1207,7 +997,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "centroid_progress_reward": centroid_progress_reward,
             "action_penalty": action_penalty,
             "contact_warning_penalty": contact_warning_penalty,
-            "severe_collision_penalty": severe_collision_penalty,
             "wall_clearance_penalty": wall_clearance_penalty,
             "time_penalty": time_penalty,
             "task_complete": task_complete,
@@ -1233,7 +1022,6 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._episode_reward_sums["centroid_progress_reward"] += reward_terms["centroid_progress_reward"]
         self._episode_reward_sums["action_penalty"] -= reward_terms["action_penalty"]
         self._episode_reward_sums["contact_warning_penalty"] -= reward_terms["contact_warning_penalty"]
-        self._episode_reward_sums["severe_collision_penalty"] -= reward_terms["severe_collision_penalty"]
         self._episode_reward_sums["wall_clearance_penalty"] -= reward_terms["wall_clearance_penalty"]
         self._episode_reward_sums["time_penalty"] -= reward_terms["time_penalty"]
         self._episode_reward_sums["task_complete"] += reward_terms["task_complete"]
