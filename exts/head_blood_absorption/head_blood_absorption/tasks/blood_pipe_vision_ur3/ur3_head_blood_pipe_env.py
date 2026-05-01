@@ -44,8 +44,8 @@ class Ur3BloodPipeVisionEnvCfg(DirectRLEnvCfg):
     num_channels = 3
     obs_camera_height = 64
     obs_camera_width = 64
-    position_observation_dim = 8
-    show_policy_input_image = True
+    position_observation_dim = 1
+    show_policy_input_image = False
     policy_input_window_name = "UR3 Pipe Policy Input - Env 0"
     observation_space = {
         "camera": [num_channels, obs_camera_height, obs_camera_width],
@@ -189,14 +189,20 @@ class Ur3BloodPipeVisionEnvCfg(DirectRLEnvCfg):
     liquidCfg = FluidObjectCfg()
     liquidCfg.numParticlesX = 3
     liquidCfg.numParticlesY = 3
-    liquidCfg.numParticlesZ = 28
+    liquidCfg.numParticlesZ = 25
     liquidCfg.density = 1060.0
     liquidCfg.particle_mass = 0.001
     liquidCfg.particleSpacing = 0.004
     liquidCfg.viscosity = 3.5
     blood_init_pos_list = ()
+    load_blood_init_templates_from_pt = True
+    blood_init_template_files = (
+        "pipe_particle_init_pos_12.pt",
+        "pipe_particle_init_pos_18.pt",
+        "pipe_particle_init_pos_25.pt",
+    )
     save_blood_init_template_enabled = False
-    save_blood_init_template_name = "pipe_particle_init_pos_28"
+    save_blood_init_template_name = "pipe_particle_init_pos_25"
     save_blood_init_template_after_steps = 240
 
     ur3_robot = ArticulationCfg(
@@ -519,6 +525,76 @@ class Ur3BloodPipeVisionEnv(DirectRLEnv):
         self._load_blood_init_templates()
 
     def _load_blood_init_templates(self) -> None:
+        if bool(self.cfg.load_blood_init_templates_from_pt):
+            self._load_blood_init_templates_from_pt_files()
+            return
+
+        self._generate_blood_init_templates()
+
+    def _load_blood_init_templates_from_pt_files(self) -> None:
+        max_particle_capacity = int(
+            self.cfg.liquidCfg.numParticlesX * self.cfg.liquidCfg.numParticlesY * self.cfg.liquidCfg.numParticlesZ
+        )
+        blood_init_pos_list: list[np.ndarray] = []
+        blood_init_vel_list: list[np.ndarray] = []
+        blood_init_counts: list[int] = []
+
+        template_files = tuple(self.cfg.blood_init_template_files)
+        if len(template_files) <= 0:
+            raise ValueError("load_blood_init_templates_from_pt is enabled but blood_init_template_files is empty.")
+
+        for template_idx, template_file in enumerate(template_files):
+            template_path = str(template_file)
+            if not template_path.endswith(".pt"):
+                template_path = f"{template_path}.pt"
+            if not os.path.isabs(template_path):
+                template_path = os.path.join(self.cfg.ASSET_PATH, template_path)
+            if not os.path.exists(template_path):
+                raise FileNotFoundError(f"Blood init template file does not exist: {template_path}")
+
+            try:
+                loaded_template = torch.load(template_path, map_location="cpu", weights_only=True)
+            except TypeError:
+                loaded_template = torch.load(template_path, map_location="cpu")
+
+            if isinstance(loaded_template, dict):
+                if "positions" in loaded_template:
+                    loaded_template = loaded_template["positions"]
+                elif "particles_pos" in loaded_template:
+                    loaded_template = loaded_template["particles_pos"]
+                else:
+                    raise ValueError(
+                        f"Blood init template {template_path} is a dict, but it does not contain "
+                        "'positions' or 'particles_pos'."
+                    )
+
+            positions = np.asarray(torch.as_tensor(loaded_template, dtype=torch.float32).cpu().numpy(), dtype=np.float32)
+            if positions.ndim != 2 or positions.shape[1] != 3:
+                raise ValueError(
+                    f"Blood init template {template_path} must have shape (N, 3), got {tuple(positions.shape)}."
+                )
+            if positions.shape[0] <= 0:
+                raise ValueError(f"Blood init template {template_path} has no particles.")
+            if positions.shape[0] > max_particle_capacity:
+                raise ValueError(
+                    f"Blood init template {template_idx} has {positions.shape[0]} particles, "
+                    f"which exceeds the configured capacity of {max_particle_capacity}."
+                )
+
+            velocities = np.zeros_like(positions, dtype=np.float32)
+            blood_init_pos_list.append(positions.copy())
+            blood_init_vel_list.append(velocities)
+            blood_init_counts.append(int(positions.shape[0]))
+
+        self._blood_init_pos_list = blood_init_pos_list
+        self._blood_init_vel_list = blood_init_vel_list
+        self._blood_init_counts = tuple(blood_init_counts)
+        carb.log_info(
+            "Loaded blood init templates from .pt files: "
+            + ", ".join(f"{count} particles" for count in self._blood_init_counts)
+        )
+
+    def _generate_blood_init_templates(self) -> None:
         max_particle_capacity = int(
             self.cfg.liquidCfg.numParticlesX * self.cfg.liquidCfg.numParticlesY * self.cfg.liquidCfg.numParticlesZ
         )
@@ -905,8 +981,8 @@ class Ur3BloodPipeVisionEnv(DirectRLEnv):
 
         return torch.cat(
             (
-                tip_pose_features,
-                goal_error_normalized,
+                # tip_pose_features,
+                # goal_error_normalized,
                 contact_ratio,
             ),
             dim=1,

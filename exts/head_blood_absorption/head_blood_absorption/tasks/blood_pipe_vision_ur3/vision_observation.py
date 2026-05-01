@@ -15,7 +15,7 @@ except ImportError:
 class BloodPipeVisionObservationManager:
     """Build wrist-camera and non-privileged proprioceptive observations."""
 
-    _POSITION_OBSERVATION_DIM = 8
+    _POSITION_OBSERVATION_DIM = 1
 
     def __init__(self, cfg, num_envs: int, device: torch.device | str):
         self.cfg = cfg
