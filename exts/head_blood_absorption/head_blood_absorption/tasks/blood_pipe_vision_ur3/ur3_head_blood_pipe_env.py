@@ -45,6 +45,8 @@ class Ur3BloodPipeVisionEnvCfg(DirectRLEnvCfg):
     obs_camera_height = 64
     obs_camera_width = 64
     position_observation_dim = 8
+    show_policy_input_image = True
+    policy_input_window_name = "UR3 Pipe Policy Input - Env 0"
     observation_space = {
         "camera": [num_channels, obs_camera_height, obs_camera_width],
         "position": position_observation_dim,
@@ -75,16 +77,16 @@ class Ur3BloodPipeVisionEnvCfg(DirectRLEnvCfg):
     wrist_camera: TiledCameraCfg = TiledCameraCfg(
         prim_path="/World/envs/env_.*/UR3/ur3_robot/tip_link/WristCamera",
         offset=TiledCameraCfg.OffsetCfg(
-            pos=(0.0, -0.035, 0.015),
-            rot=(0.7071068, -0.7071068, 0.0, 0.0),
+            pos=(0.0, -0.015, -0.005),
+            rot=(0.0, 0.0, 0.6618026, 0.7496782),
             convention="ros",
         ),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
-            focal_length=12.0,
-            focus_distance=0.20,
+            focal_length=20.0,
+            focus_distance=0.05,
             horizontal_aperture=20.955,
-            clipping_range=(0.005, 2.0),
+            clipping_range=(0.001, 0.15),
         ),
         width=obs_camera_width,
         height=obs_camera_height,
