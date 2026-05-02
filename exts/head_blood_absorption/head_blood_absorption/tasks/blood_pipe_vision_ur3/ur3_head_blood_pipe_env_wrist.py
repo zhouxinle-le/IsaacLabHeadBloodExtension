@@ -45,7 +45,7 @@ class Ur3BloodPipeVisionWristEnvCfg(DirectRLEnvCfg):
     obs_camera_height = 64
     obs_camera_width = 64
     position_observation_dim = 5
-    show_policy_input_image = False
+    show_policy_input_image = True
     policy_input_window_name = "UR3 Pipe Policy Input - Env 0"
     observation_space = {
         "camera": [num_channels, obs_camera_height, obs_camera_width],
@@ -418,13 +418,13 @@ class Ur3BloodPipeVisionWristEnv(DirectRLEnv):
 
     @staticmethod
     def _invert_quat_torch(quat_wxyz: torch.Tensor) -> torch.Tensor:
-        quat = Ur3BloodPipeVisionEnv._normalize_quat_torch(quat_wxyz)
+        quat = Ur3BloodPipeVisionWristEnv._normalize_quat_torch(quat_wxyz)
         return torch.cat((quat[..., :1], -quat[..., 1:]), dim=-1)
 
     @staticmethod
     def _multiply_quat_torch(lhs_wxyz: torch.Tensor, rhs_wxyz: torch.Tensor) -> torch.Tensor:
-        lhs = Ur3BloodPipeVisionEnv._normalize_quat_torch(lhs_wxyz)
-        rhs = Ur3BloodPipeVisionEnv._normalize_quat_torch(rhs_wxyz)
+        lhs = Ur3BloodPipeVisionWristEnv._normalize_quat_torch(lhs_wxyz)
+        rhs = Ur3BloodPipeVisionWristEnv._normalize_quat_torch(rhs_wxyz)
         lw, lx, ly, lz = lhs.unbind(dim=-1)
         rw, rx, ry, rz = rhs.unbind(dim=-1)
         result = torch.stack(
@@ -436,7 +436,7 @@ class Ur3BloodPipeVisionWristEnv(DirectRLEnv):
             ),
             dim=-1,
         )
-        return Ur3BloodPipeVisionEnv._normalize_quat_torch(result)
+        return Ur3BloodPipeVisionWristEnv._normalize_quat_torch(result)
 
     def _init_pipe_frame_state(self) -> None:
         pipe_root_pos = torch.tensor(tuple(self.cfg.pipe.init_state.pos), dtype=torch.float32, device=self.device)
