@@ -13,9 +13,7 @@ except ImportError:
 
 
 class BloodPipeVisionObservationManager:
-    """Build wrist-camera and non-privileged proprioceptive observations."""
-
-    _POSITION_OBSERVATION_DIM = 5
+    """Build camera and non-privileged proprioceptive observations."""
 
     def __init__(self, cfg, num_envs: int, device: torch.device | str):
         self.cfg = cfg
@@ -44,11 +42,6 @@ class BloodPipeVisionObservationManager:
             dtype=torch.float32,
             device=self.device,
         )
-        if int(self.cfg.position_observation_dim) != self._POSITION_OBSERVATION_DIM:
-            raise ValueError(
-                "blood_pipe_vision_ur3 position_observation_dim must match the assembled proprioception "
-                f"features ({self._POSITION_OBSERVATION_DIM}), got {self.cfg.position_observation_dim}"
-            )
 
     def bind_runtime(self, camera: Any) -> None:
         self._camera = camera
