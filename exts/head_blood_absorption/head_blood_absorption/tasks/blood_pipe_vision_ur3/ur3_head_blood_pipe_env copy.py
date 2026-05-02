@@ -45,7 +45,7 @@ class Ur3BloodPipeVisionEnvCfg(DirectRLEnvCfg):
     obs_camera_height = 64
     obs_camera_width = 64
     position_observation_dim = 5
-    show_policy_input_image = True
+    show_policy_input_image = False
     policy_input_window_name = "UR3 Pipe Policy Input - Env 0"
     observation_space = {
         "camera": [num_channels, obs_camera_height, obs_camera_width],
@@ -74,16 +74,16 @@ class Ur3BloodPipeVisionEnvCfg(DirectRLEnvCfg):
         replicate_physics=False,
     )
 
-    pipe_camera: TiledCameraCfg = TiledCameraCfg(
-        prim_path="/World/envs/env_.*/HeadPipe/PipeCamera",
+    wrist_camera: TiledCameraCfg = TiledCameraCfg(
+        prim_path="/World/envs/env_.*/UR3/ur3_robot/tip_link/WristCamera",
         offset=TiledCameraCfg.OffsetCfg(
-            pos=(0.0398244000971, -0.0623377195186, 0.106157662452),
-            rot=(0.1736503198287, -0.9848073752889, 0.0, 0.0),
+            pos=(0.0, -0.015, -0.005),
+            rot=(0.0, 0.0, 0.6618026, 0.7496782),
             convention="ros",
         ),
         data_types=["rgb"],
         spawn=sim_utils.PinholeCameraCfg(
-            focal_length=18.0,
+            focal_length=20.0,
             focus_distance=0.05,
             horizontal_aperture=20.955,
             clipping_range=(0.001, 0.15),
@@ -743,8 +743,8 @@ class Ur3BloodPipeVisionEnv(DirectRLEnv):
         self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
         self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
 
-        self._camera = TiledCamera(self.cfg.pipe_camera)
-        self.scene.sensors["pipe_camera"] = self._camera
+        self._camera = TiledCamera(self.cfg.wrist_camera)
+        self.scene.sensors["wrist_camera"] = self._camera
 
         self.scene.clone_environments(copy_from_source=False)
         self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
