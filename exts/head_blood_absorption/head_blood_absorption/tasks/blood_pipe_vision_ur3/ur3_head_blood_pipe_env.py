@@ -44,7 +44,7 @@ class Ur3BloodPipeVisionEnvCfg(DirectRLEnvCfg):
     num_channels = 3
     obs_camera_height = 64
     obs_camera_width = 64
-    position_observation_dim = 1
+    position_observation_dim = 5
     show_policy_input_image = False
     policy_input_window_name = "UR3 Pipe Policy Input - Env 0"
     observation_space = {
@@ -764,7 +764,8 @@ class Ur3BloodPipeVisionEnv(DirectRLEnv):
             self._set_task_state_dirty()
             return
 
-        self._raw_actions[:] = torch.clamp(actions, -1.0, 1.0)
+        safe_actions = torch.nan_to_num(actions, nan=0.0, posinf=0.0, neginf=0.0)
+        self._raw_actions[:] = torch.clamp(safe_actions, -1.0, 1.0)
         delta_pos_pipe = self._raw_actions * self._pipe_action_scale.unsqueeze(0)
 
         tip_pos_w, _ = self._compute_tip_pose_and_direction_w()
@@ -981,7 +982,7 @@ class Ur3BloodPipeVisionEnv(DirectRLEnv):
 
         return torch.cat(
             (
-                # tip_pose_features,
+                tip_pose_features,
                 # goal_error_normalized,
                 contact_ratio,
             ),

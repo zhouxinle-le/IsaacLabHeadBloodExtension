@@ -65,6 +65,9 @@ agent:
   learning_rate_scheduler: KLAdaptiveLR
   learning_rate_scheduler_kwargs:
     kl_threshold: 0.008
+    min_lr: 1.0e-05
+    max_lr: 5.0e-04
+    lr_factor: 1.2
   state_preprocessor: null
   state_preprocessor_kwargs: null
   value_preprocessor: RunningStandardScaler
