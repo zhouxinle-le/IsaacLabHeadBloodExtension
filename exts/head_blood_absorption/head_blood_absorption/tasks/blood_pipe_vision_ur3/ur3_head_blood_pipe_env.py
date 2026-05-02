@@ -105,7 +105,7 @@ class Ur3BloodPipeVisionEnvCfg(DirectRLEnvCfg):
     pipe_inner_radius = 0.012     # 管道几何，内半径
     pipe_tool_clearance_margin = 0.0045     # 吸取工具与管道之间的安全间隙，作用于奖励函数中的壁面接近惩罚
     pipe_blood_valid_radius = 0.012         # 血液被认为在管道内的有效半径，作用于奖励函数中的吸取奖励
-    pipe_blood_axis_margin = 0.0036          # 血液被认为在管道轴线附近的额外边距，作用于奖励函数中的吸取奖励
+    pipe_blood_axis_margin = 0.002          # 血液被认为在管道轴线附近的额外边距，作用于奖励函数中的吸取奖励
     pipe_blood_template_z_counts = (15, 21) # (15, 21, 28)     # 用于定义血液粒子初始位置模板的 z 轴分布，单位为米，作用于血液粒子初始位置的生成
     pipe_blood_template_z_start = 0.010                        # 血液粒子初始位置模板的起始 z 轴位置，单位为米，作用于血液粒子初始位置的生成
     pipe_blood_template_z_end = 0.045                          # 血液粒子初始位置模板的结束 z 轴位置，单位为米，作用于血液粒子初始位置的生成
@@ -273,8 +273,8 @@ class Ur3BloodPipeVisionEnvCfg(DirectRLEnvCfg):
     suction_cone_range = 0.07
     suction_force_scale = 0.02
     suction_epsilon = 1e-6
-    inlet_radius = 0.004  # 0.008
-    inlet_depth = 0.006
+    inlet_radius = 0.006  # 0.008
+    inlet_depth = 0.008
     use_body_quat_for_tip_dir = True
     outflow_speed = 0.02
     max_particle_speed = 0.4
