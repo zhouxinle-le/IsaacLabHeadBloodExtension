@@ -39,7 +39,7 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     decimation = 2
     action_space = 3
     state_space = 0
-    observation_space = 13
+    observation_space = 10
 
     sim: SimulationCfg = SimulationCfg(
         dt=1 / 300,
@@ -75,10 +75,12 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     pipe_inner_radius = 0.012     # 管道几何，内半径
     pipe_tool_clearance_margin = 0.0045     # 吸取工具与管道之间的安全间隙，作用于奖励函数中的壁面接近惩罚
     pipe_blood_valid_radius = 0.012         # 血液被认为在管道内的有效半径，作用于奖励函数中的吸取奖励
-    pipe_blood_axis_margin = 0.002          # 血液被认为在管道轴线附近的额外边距，作用于奖励函数中的吸取奖励
+    pipe_blood_axis_margin = 0.001          # 血液被认为在管道轴线附近的额外边距，作用于奖励函数中的吸取奖励
     pipe_blood_template_z_counts = (15, 21) # (15, 21, 28)     # 用于定义血液粒子初始位置模板的 z 轴分布，单位为米，作用于血液粒子初始位置的生成
     pipe_blood_template_z_start = 0.010                        # 血液粒子初始位置模板的起始 z 轴位置，单位为米，作用于血液粒子初始位置的生成
     pipe_blood_template_z_end = 0.045                          # 血液粒子初始位置模板的结束 z 轴位置，单位为米，作用于血液粒子初始位置的生成
+    pipe_goal_z_min = 0.012                                     # IK 目标点在 pipe_link 坐标系下允许的最小 z
+    pipe_goal_z_max = 0.06                                      # IK 目标点在 pipe_link 坐标系下允许的最大 z
     pipe_wall_clearance_penalty_weight = 0.05             # 壁面接近惩罚的权重，作用于奖励函数中的壁面接近惩罚
     spawn_pos_fluid = spawn_pos_pipe + Gf.Vec3f(0.039522, -0.052623, 0.07751)
     spawn_pos_glass2 = Gf.Vec3f(0.0, 0.70, 0.01)
@@ -159,14 +161,20 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     liquidCfg = FluidObjectCfg()
     liquidCfg.numParticlesX = 3
     liquidCfg.numParticlesY = 3
-    liquidCfg.numParticlesZ = 28
+    liquidCfg.numParticlesZ = 25
     liquidCfg.density = 1060.0
     liquidCfg.particle_mass = 0.001
     liquidCfg.particleSpacing = 0.004
     liquidCfg.viscosity = 3.5
     blood_init_pos_list = ()
+    load_blood_init_templates_from_pt = True
+    blood_init_template_files = (
+        "pipe_particle_init_pos_12.pt",
+        "pipe_particle_init_pos_18.pt",
+        "pipe_particle_init_pos_25.pt",
+    )
     save_blood_init_template_enabled = False
-    save_blood_init_template_name = "pipe_particle_init_pos_28"
+    save_blood_init_template_name = "pipe_particle_init_pos_25"
     save_blood_init_template_after_steps = 240
 
     ur3_robot = ArticulationCfg(
@@ -236,7 +244,7 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     suction_force_scale = 0.02
     suction_epsilon = 1e-6
     inlet_radius = 0.004  # 0.008
-    inlet_depth = 0.006
+    inlet_depth = 0.008
     use_body_quat_for_tip_dir = True
     outflow_speed = 0.02
     max_particle_speed = 0.4
@@ -430,8 +438,11 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         radial = torch.linalg.vector_norm(clamped[:, :2], dim=1, keepdim=True)
         scale = torch.clamp(radius / radial.clamp_min(1.0e-9), max=1.0)
         clamped[:, :2] = clamped[:, :2] * scale
-        z_low = float(self.cfg.pipe_blood_axis_margin)
-        z_high = max(float(self.cfg.pipe_length) - float(self.cfg.pipe_blood_axis_margin), z_low)
+        pipe_z_low = float(self.cfg.pipe_blood_axis_margin)
+        pipe_z_high = max(float(self.cfg.pipe_length) - float(self.cfg.pipe_blood_axis_margin), pipe_z_low)
+        z_low = max(float(self.cfg.pipe_goal_z_min), pipe_z_low)
+        z_high = min(float(self.cfg.pipe_goal_z_max), pipe_z_high)
+        z_high = max(z_high, z_low)
         clamped[:, 2] = torch.clamp(clamped[:, 2], min=z_low, max=z_high)
         return clamped
 
@@ -481,6 +492,76 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._load_blood_init_templates()
 
     def _load_blood_init_templates(self) -> None:
+        if bool(self.cfg.load_blood_init_templates_from_pt):
+            self._load_blood_init_templates_from_pt_files()
+            return
+
+        self._generate_blood_init_templates()
+
+    def _load_blood_init_templates_from_pt_files(self) -> None:
+        max_particle_capacity = int(
+            self.cfg.liquidCfg.numParticlesX * self.cfg.liquidCfg.numParticlesY * self.cfg.liquidCfg.numParticlesZ
+        )
+        blood_init_pos_list: list[np.ndarray] = []
+        blood_init_vel_list: list[np.ndarray] = []
+        blood_init_counts: list[int] = []
+
+        template_files = tuple(self.cfg.blood_init_template_files)
+        if len(template_files) <= 0:
+            raise ValueError("load_blood_init_templates_from_pt is enabled but blood_init_template_files is empty.")
+
+        for template_idx, template_file in enumerate(template_files):
+            template_path = str(template_file)
+            if not template_path.endswith(".pt"):
+                template_path = f"{template_path}.pt"
+            if not os.path.isabs(template_path):
+                template_path = os.path.join(self.cfg.ASSET_PATH, template_path)
+            if not os.path.exists(template_path):
+                raise FileNotFoundError(f"Blood init template file does not exist: {template_path}")
+
+            try:
+                loaded_template = torch.load(template_path, map_location="cpu", weights_only=True)
+            except TypeError:
+                loaded_template = torch.load(template_path, map_location="cpu")
+
+            if isinstance(loaded_template, dict):
+                if "positions" in loaded_template:
+                    loaded_template = loaded_template["positions"]
+                elif "particles_pos" in loaded_template:
+                    loaded_template = loaded_template["particles_pos"]
+                else:
+                    raise ValueError(
+                        f"Blood init template {template_path} is a dict, but it does not contain "
+                        "'positions' or 'particles_pos'."
+                    )
+
+            positions = np.asarray(torch.as_tensor(loaded_template, dtype=torch.float32).cpu().numpy(), dtype=np.float32)
+            if positions.ndim != 2 or positions.shape[1] != 3:
+                raise ValueError(
+                    f"Blood init template {template_path} must have shape (N, 3), got {tuple(positions.shape)}."
+                )
+            if positions.shape[0] <= 0:
+                raise ValueError(f"Blood init template {template_path} has no particles.")
+            if positions.shape[0] > max_particle_capacity:
+                raise ValueError(
+                    f"Blood init template {template_idx} has {positions.shape[0]} particles, "
+                    f"which exceeds the configured capacity of {max_particle_capacity}."
+                )
+
+            velocities = np.zeros_like(positions, dtype=np.float32)
+            blood_init_pos_list.append(positions.copy())
+            blood_init_vel_list.append(velocities)
+            blood_init_counts.append(int(positions.shape[0]))
+
+        self._blood_init_pos_list = blood_init_pos_list
+        self._blood_init_vel_list = blood_init_vel_list
+        self._blood_init_counts = tuple(blood_init_counts)
+        carb.log_info(
+            "Loaded blood init templates from .pt files: "
+            + ", ".join(f"{count} particles" for count in self._blood_init_counts)
+        )
+
+    def _generate_blood_init_templates(self) -> None:
         max_particle_capacity = int(
             self.cfg.liquidCfg.numParticlesX * self.cfg.liquidCfg.numParticlesY * self.cfg.liquidCfg.numParticlesZ
         )
@@ -647,7 +728,8 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             self._set_task_state_dirty()
             return
 
-        self._raw_actions[:] = torch.clamp(actions, -1.0, 1.0)
+        safe_actions = torch.nan_to_num(actions, nan=0.0, posinf=0.0, neginf=0.0)
+        self._raw_actions[:] = torch.clamp(safe_actions, -1.0, 1.0)
         delta_pos_pipe = self._raw_actions * self._pipe_action_scale.unsqueeze(0)
 
         tip_pos_w, _ = self._compute_tip_pose_and_direction_w()
@@ -856,8 +938,8 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             device=self.device,
         )
         blood_centroid_rel_normalized = torch.clamp((blood_pos_pipe - tip_pos_pipe) / pipe_scale, -1.0, 1.0)
-        goal_pos_pipe = self._world_to_pipe_pos(self._ee_goal_pos_w)
-        goal_error_normalized = torch.clamp((goal_pos_pipe - tip_pos_pipe) / pipe_scale, -1.0, 1.0)
+        # goal_pos_pipe = self._world_to_pipe_pos(self._ee_goal_pos_w)
+        # goal_error_normalized = torch.clamp((goal_pos_pipe - tip_pos_pipe) / pipe_scale, -1.0, 1.0)
 
         absorbed_ratio = torch.clamp(
             task_state.absorbed_count / self._initial_particle_count.clamp_min(1.0),
@@ -875,7 +957,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             (
                 tip_pose_features,
                 blood_centroid_rel_normalized,
-                goal_error_normalized,
+                # goal_error_normalized,
                 valid_in_inlet_ratio,
                 absorbed_ratio,
                 contact_ratio,
