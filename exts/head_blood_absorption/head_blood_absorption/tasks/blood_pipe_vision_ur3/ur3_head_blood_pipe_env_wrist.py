@@ -110,7 +110,7 @@ class Ur3BloodPipeVisionWristEnvCfg(DirectRLEnvCfg):
     pipe_blood_template_z_start = 0.010                        # 血液粒子初始位置模板的起始 z 轴位置，单位为米，作用于血液粒子初始位置的生成
     pipe_blood_template_z_end = 0.045                          # 血液粒子初始位置模板的结束 z 轴位置，单位为米，作用于血液粒子初始位置的生成
     pipe_goal_z_min = 0.012                                     # IK 目标点在 pipe_link 坐标系下允许的最小 z
-    pipe_goal_z_max = 0.055                                     # IK 目标点在 pipe_link 坐标系下允许的最大 z
+    pipe_goal_z_max = 0.06                                     # IK 目标点在 pipe_link 坐标系下允许的最大 z
     pipe_wall_clearance_penalty_weight = 0.05             # 壁面接近惩罚的权重，作用于奖励函数中的壁面接近惩罚
     spawn_pos_fluid = spawn_pos_pipe + Gf.Vec3f(0.039522, -0.052623, 0.07751)
     spawn_pos_glass2 = Gf.Vec3f(0.0, 0.70, 0.01)
@@ -273,7 +273,7 @@ class Ur3BloodPipeVisionWristEnvCfg(DirectRLEnvCfg):
     suction_cone_range = 0.07
     suction_force_scale = 0.02
     suction_epsilon = 1e-6
-    inlet_radius = 0.006  # 0.008
+    inlet_radius = 0.005  # 0.008
     inlet_depth = 0.008
     use_body_quat_for_tip_dir = True
     outflow_speed = 0.02
@@ -289,7 +289,7 @@ class Ur3BloodPipeVisionWristEnvCfg(DirectRLEnvCfg):
     reward_contact_warning_weight = 0.2
     severe_contact_force_threshold = 2.0
 
-    blood_success_ratio = 0.96
+    blood_success_ratio = 0.95
 
 
 class Ur3BloodPipeVisionWristEnv(DirectRLEnv):
