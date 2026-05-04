@@ -16,8 +16,8 @@ if str(SOURCE_DIR) not in sys.path:
 from omni.isaac.lab.app import AppLauncher
 
 
-parser = argparse.ArgumentParser(description="Train the blood_state task with vendored R2-Dreamer.")
-parser.add_argument("--task", type=str, default="Isaac-Psm-Blood-State-Direct-v0", help="Gym task name.")
+parser = argparse.ArgumentParser(description="Train an Isaac task with vendored R2-Dreamer.")
+parser.add_argument("--task", type=str, default="Isaac-Ur3-Blood-Pipe-State-Direct-v0", help="Gym task name.")
 parser.add_argument(
     "--cfg_entry_point",
     type=str,
@@ -55,7 +55,7 @@ import gymnasium as gym
 import torch
 import yaml
 
-import blood_absorption_world.tasks  # noqa: F401
+import head_blood_absorption.tasks  # noqa: F401
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab_tasks.utils import load_cfg_from_registry, parse_env_cfg
 

@@ -37,7 +37,7 @@ parser.add_argument("--task", type=str, default=None, help="Gym task name. Defau
 parser.add_argument(
     "--cfg_entry_point",
     type=str,
-    default="r2dreamer_cfg_entry_point",
+    default="dreamer_cfg_entry_point",
     help="Registry key for the Dreamer-family config to load when no saved run config is provided.",
 )
 parser.add_argument("--checkpoint", type=str, required=True, help="Checkpoint file or run directory to load.")
@@ -74,7 +74,7 @@ simulation_app = app_launcher.app
 import gymnasium as gym
 import torch
 
-import blood_absorption_world.tasks  # noqa: F401
+import head_blood_absorption.tasks  # noqa: F401
 import omni.isaac.lab_tasks  # noqa: F401
 from omni.isaac.lab.utils.dict import print_dict
 from omni.isaac.lab_tasks.utils import load_cfg_from_registry, parse_env_cfg
