@@ -19,7 +19,7 @@ import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIGURE_DPI = 300
-GRID_COLOR = "#D8D8D8"
+GRID_COLOR = "#E3E3E3"
 
 DEFAULT_PPO_RUNS = (
     Path("logs/skrl/ur3_blood_pipe_vision_direct_wrist/2026-05-10_21-23-12_ppo_torch_seed_0_800k"),
@@ -88,44 +88,48 @@ METRICS = (
         dreamer_tags=("rollout/recent_termination_success",),
         rate=True,
     ),
-    MetricSpec(
-        key="absorbed_ratio",
-        title="吸取比例",
-        ylabel="吸取比例",
-        ppo_tags=("Metrics/absorbed_ratio_mean",),
-        dreamer_tags=("Metrics/absorbed_ratio_mean",),
-        rate=True,
-    ),
-    MetricSpec(
-        key="severe_collision_rate",
-        title="严重碰撞率",
-        ylabel="严重碰撞率",
-        ppo_tags=("Episode_Termination/severe_collision",),
-        dreamer_tags=("rollout/recent_termination_severe_collision",),
-        rate=True,
-    ),
+    # MetricSpec(
+    #     key="absorbed_ratio",
+    #     title="吸取比例",
+    #     ylabel="吸取比例",
+    #     ppo_tags=("Metrics/absorbed_ratio_mean",),
+    #     dreamer_tags=("Metrics/absorbed_ratio_mean",),
+    #     rate=True,
+    # ),
+    # MetricSpec(
+    #     key="severe_collision_rate",
+    #     title="严重碰撞率",
+    #     ylabel="严重碰撞率",
+    #     ppo_tags=("Episode_Termination/severe_collision",),
+    #     dreamer_tags=("rollout/recent_termination_severe_collision",),
+    #     rate=True,
+    # ),
 )
 
 
 def _configure_plot_style() -> None:
     available_fonts = {font.name for font in font_manager.fontManager.ttflist}
     preferred_fonts = [
-        "Noto Serif CJK SC",
+        "Microsoft YaHei",
+        "微软雅黑",
         "Noto Sans CJK SC",
+        "Noto Serif CJK SC",
         "Droid Sans Fallback",
-        "Times New Roman",
+        "DejaVu Sans",
         "DejaVu Serif",
     ]
     font_stack = [font for font in preferred_fonts if font in available_fonts] or ["DejaVu Serif"]
     plt.rcParams.update(
         {
             "font.family": font_stack,
+            "figure.facecolor": "white",
+            "axes.facecolor": "white",
             "axes.unicode_minus": False,
-            "axes.labelsize": 10,
-            "axes.titlesize": 10,
-            "xtick.labelsize": 9,
-            "ytick.labelsize": 9,
-            "legend.fontsize": 9,
+            "axes.labelsize": 7.5,
+            "axes.titlesize": 9,
+            "xtick.labelsize": 6.5,
+            "ytick.labelsize": 6.5,
+            "legend.fontsize": 6.5,
             "pdf.fonttype": 42,
             "ps.fonttype": 42,
             "savefig.dpi": FIGURE_DPI,
@@ -370,20 +374,23 @@ def _style_axis(ax, spec: MetricSpec) -> None:
     ax.set_xlabel("真实环境交互步数", labelpad=6)
     ax.set_ylabel(spec.ylabel, labelpad=6)
     ax.xaxis.set_major_formatter(FuncFormatter(_format_steps))
-    ax.grid(True, axis="both", color=GRID_COLOR, linewidth=0.55, alpha=0.65)
+    ax.grid(True, axis="both", color=GRID_COLOR, linestyle="--", linewidth=0.6, alpha=0.85)
     ax.set_axisbelow(True)
     for spine in ax.spines.values():
         spine.set_visible(True)
-        spine.set_color("black")
-        spine.set_linewidth(1.0)
-    ax.tick_params(direction="out", length=3.5, width=0.9, top=False, right=False)
+        spine.set_color("#666666")
+        spine.set_linewidth(0.9)
+    ax.tick_params(direction="out", length=3.5, width=0.8, colors="#222222", top=False, right=False)
     if spec.rate:
         ax.set_ylim(-0.03, 1.03)
 
 
 def _plot(aggregates: dict[str, dict[str, AggregateCurve]], output_path: Path) -> None:
-    fig, axes = plt.subplots(2, 2, figsize=(7.2, 5.4), dpi=FIGURE_DPI, sharex=True)
-    for ax, spec in zip(axes.ravel(), METRICS):
+    # Four-panel layout kept for reference:
+    # fig, axes = plt.subplots(2, 2, figsize=(7.2, 5.4), dpi=FIGURE_DPI, sharex=True)
+    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.0), dpi=FIGURE_DPI, sharex=True)
+    axes = np.atleast_1d(axes).ravel()
+    for ax, spec in zip(axes, METRICS):
         for group in ("ppo", "dreamer"):
             curve = aggregates[spec.key][group]
             ax.fill_between(
@@ -391,7 +398,7 @@ def _plot(aggregates: dict[str, dict[str, AggregateCurve]], output_path: Path) -
                 curve.mean - curve.std,
                 curve.mean + curve.std,
                 color=GROUP_COLORS[group],
-                alpha=0.16,
+                alpha=0.08,
                 linewidth=0.0,
                 zorder=2,
             )
@@ -399,27 +406,22 @@ def _plot(aggregates: dict[str, dict[str, AggregateCurve]], output_path: Path) -
                 curve.x,
                 curve.mean,
                 color=GROUP_COLORS[group],
-                linewidth=2.2,
+                linewidth=1.2,
                 label=GROUP_LABELS[group],
                 zorder=3,
             )
         _style_axis(ax, spec)
-
-    handles, labels = axes.ravel()[0].get_legend_handles_labels()
-    legend = fig.legend(
-        handles,
-        labels,
-        loc="upper center",
-        ncol=2,
-        frameon=True,
-        facecolor="white",
-        edgecolor=GRID_COLOR,
-        framealpha=1.0,
-        fancybox=False,
-        bbox_to_anchor=(0.5, 0.995),
-    )
-    legend.get_frame().set_linewidth(0.8)
-    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.94))
+        legend = ax.legend(
+            loc="lower right",
+            ncol=1,
+            frameon=True,
+            facecolor="white",
+            edgecolor="#DDDDDD",
+            framealpha=0.9,
+            fancybox=True,
+        )
+        legend.get_frame().set_linewidth(0.8)
+    fig.tight_layout()
     fig.savefig(output_path.with_suffix(".png"), dpi=FIGURE_DPI)
     fig.savefig(output_path.with_suffix(".pdf"))
     plt.close(fig)
