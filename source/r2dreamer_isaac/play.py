@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import json
 import os
 import pathlib
 import sys
+from datetime import datetime
 
 CURRENT_DIR = pathlib.Path(__file__).resolve().parent
 SOURCE_DIR = CURRENT_DIR.parent
@@ -44,6 +47,13 @@ parser.add_argument("--checkpoint", type=str, required=True, help="Checkpoint fi
 parser.add_argument("--config", type=str, default=None, help="Optional path to a saved r2dreamer.yaml config.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
 parser.add_argument("--episodes", type=int, default=10, help="Number of episodes to evaluate. Use 0 for unlimited.")
+parser.add_argument("--seed", type=int, default=None, help="Optional seed used for the evaluation environment.")
+parser.add_argument(
+    "--output_dir",
+    type=str,
+    default=None,
+    help="Directory to write episode_summary.csv and summary.json. Defaults to <run>/eval/<timestamp>.",
+)
 parser.add_argument("--video", action="store_true", default=False, help="Record a video during playback.")
 parser.add_argument("--video_length", type=int, default=300, help="Maximum video length in environment steps.")
 parser.add_argument(
@@ -136,6 +146,151 @@ def _metric_to_float(value) -> float | None:
     return None
 
 
+EVAL_FIELDNAMES = (
+    "algorithm",
+    "task",
+    "seed",
+    "checkpoint",
+    "episode_id",
+    "return",
+    "episode_length",
+    "success",
+    "severe_collision",
+    "time_out",
+    "absorbed_ratio_final",
+    "ur3_contact_force_max",
+    "tip_goal_error_mean",
+    "tip_pipe_clearance_mean",
+)
+
+
+def _make_output_dir(run_dir: pathlib.Path, output_dir: str | None) -> pathlib.Path | None:
+    if output_dir is None:
+        return None
+    path = pathlib.Path(output_dir).expanduser().resolve()
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _default_output_dir(run_dir: pathlib.Path) -> pathlib.Path:
+    root = run_dir / "eval"
+    root.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    candidate = root / timestamp
+    suffix = 1
+    while candidate.exists():
+        candidate = root / f"{timestamp}_{suffix:02d}"
+        suffix += 1
+    candidate.mkdir(parents=True, exist_ok=False)
+    return candidate
+
+
+def _extract_metric(log_data: dict, key: str, default: float = float("nan")) -> float:
+    value = _metric_to_float(log_data.get(key))
+    return default if value is None else value
+
+
+def _termination_flags(log_data: dict) -> dict[str, bool]:
+    success = _extract_metric(log_data, "Episode_Termination/success", 0.0) > 0.5
+    severe_collision = _extract_metric(log_data, "Episode_Termination/severe_collision", 0.0) > 0.5
+    time_out = _extract_metric(log_data, "Episode_Termination/time_out", 0.0) > 0.5
+    return {
+        "success": success,
+        "severe_collision": severe_collision,
+        "time_out": time_out,
+    }
+
+
+def _episode_row(
+    *,
+    task_name: str,
+    checkpoint_path: pathlib.Path,
+    episode_id: int,
+    episode_return: float,
+    episode_length: int,
+    log_data: dict,
+) -> dict[str, object]:
+    flags = _termination_flags(log_data)
+    return {
+        "algorithm": "dreamer_v3",
+        "task": task_name,
+        "seed": args_cli.seed,
+        "checkpoint": str(checkpoint_path),
+        "episode_id": int(episode_id),
+        "return": float(episode_return),
+        "episode_length": int(episode_length),
+        "success": flags["success"],
+        "severe_collision": flags["severe_collision"],
+        "time_out": flags["time_out"],
+        "absorbed_ratio_final": _extract_metric(log_data, "Metrics/absorbed_ratio_mean"),
+        "ur3_contact_force_max": _extract_metric(log_data, "Metrics/ur3_contact_force_max"),
+        "tip_goal_error_mean": _extract_metric(log_data, "Metrics/tip_goal_error_mean"),
+        "tip_pipe_clearance_mean": _extract_metric(log_data, "Metrics/tip_pipe_clearance_mean"),
+    }
+
+
+def _stats(values: list[float]) -> dict[str, float] | None:
+    finite = [float(value) for value in values if value == value]
+    if not finite:
+        return None
+    tensor = torch.as_tensor(finite, dtype=torch.float32)
+    return {
+        "mean": float(tensor.mean().item()),
+        "std": float(tensor.std(unbiased=False).item()),
+        "min": float(tensor.min().item()),
+        "max": float(tensor.max().item()),
+    }
+
+
+def _write_eval_outputs(
+    output_dir: pathlib.Path,
+    rows: list[dict[str, object]],
+    task_name: str,
+    checkpoint_path: pathlib.Path,
+    step_count: int,
+) -> None:
+    csv_path = output_dir / "episode_summary.csv"
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=EVAL_FIELDNAMES)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    completed = len(rows)
+    summary = {
+        "algorithm": "dreamer_v3",
+        "task": task_name,
+        "seed": args_cli.seed,
+        "checkpoint_path": str(checkpoint_path),
+        "output_dir": str(output_dir),
+        "requested_episodes": int(args_cli.episodes),
+        "completed_episodes": completed,
+        "executed_steps": int(step_count),
+        "complete": args_cli.episodes <= 0 or completed >= args_cli.episodes,
+        "success_rate": float(sum(bool(row["success"]) for row in rows) / completed) if completed else None,
+        "severe_collision_rate": (
+            float(sum(bool(row["severe_collision"]) for row in rows) / completed) if completed else None
+        ),
+        "time_out_rate": float(sum(bool(row["time_out"]) for row in rows) / completed) if completed else None,
+        "aggregates": {
+            key: _stats([float(row[key]) for row in rows])
+            for key in (
+                "return",
+                "episode_length",
+                "absorbed_ratio_final",
+                "ur3_contact_force_max",
+                "tip_goal_error_mean",
+                "tip_pipe_clearance_mean",
+            )
+        },
+    }
+    json_path = output_dir / "summary.json"
+    with json_path.open("w", encoding="utf-8") as handle:
+        json.dump(summary, handle, indent=2, ensure_ascii=True)
+        handle.write("\n")
+    print(f"[INFO] Saved: {csv_path}")
+    print(f"[INFO] Saved: {json_path}")
+
+
 def main() -> None:
     checkpoint_path = _resolve_checkpoint_path(args_cli.checkpoint)
     config_path = pathlib.Path(args_cli.config).expanduser().resolve() if args_cli.config else None
@@ -151,11 +306,16 @@ def main() -> None:
         "agent_device": agent_device,
         "env_device": env_device,
     }
+    if args_cli.seed is not None:
+        cli_updates["seed"] = args_cli.seed
     if args_cli.num_envs is not None:
         cli_updates.setdefault("env", {})["num_envs"] = args_cli.num_envs
 
     config = build_runtime_config(task_cfg=task_cfg, cli_updates=cli_updates, dotlist_overrides=overrides)
     run_dir = _run_dir_from_checkpoint(checkpoint_path)
+    output_dir = _make_output_dir(run_dir, args_cli.output_dir)
+    if output_dir is None and args_cli.episodes > 0:
+        output_dir = _default_output_dir(run_dir)
 
     print(f"[INFO] Loading checkpoint from: {checkpoint_path}")
     print(f"[INFO] Using task: {task_name}")
@@ -169,6 +329,8 @@ def main() -> None:
         num_envs=int(config.env.num_envs),
         use_fabric=not args_cli.disable_fabric,
     )
+    if args_cli.seed is not None:
+        env_cfg.seed = args_cli.seed
 
     env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
     if args_cli.video:
@@ -209,6 +371,7 @@ def main() -> None:
         "severe_collision": 0.0,
         "time_out": 0.0,
     }
+    episode_rows: list[dict[str, object]] = []
     step_count = 0
 
     while simulation_app.is_running():
@@ -249,6 +412,16 @@ def main() -> None:
             episode_length = int(lengths[index].item())
             episode_returns.append(episode_return)
             episode_lengths.append(episode_length)
+            episode_rows.append(
+                _episode_row(
+                    task_name=task_name,
+                    checkpoint_path=checkpoint_path,
+                    episode_id=len(episode_returns),
+                    episode_return=episode_return,
+                    episode_length=episode_length,
+                    log_data=env_metrics,
+                )
+            )
             print(
                 f"[PLAY] episode={len(episode_returns):03d} "
                 f"return={episode_return:.3f} length={episode_length}"
@@ -266,6 +439,8 @@ def main() -> None:
         )
         for name, count in termination_counts.items():
             print(f"[SUMMARY] termination/{name}={count / completed_episodes:.3f}")
+        if output_dir is not None:
+            _write_eval_outputs(output_dir, episode_rows, task_name, checkpoint_path, step_count)
     else:
         print("[SUMMARY] No episodes finished before playback stopped.")
 

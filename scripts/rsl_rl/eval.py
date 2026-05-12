@@ -30,6 +30,10 @@ STEP_METRIC_SPECS = (
     ("Metrics/raw_contact_force_max", "raw_contact_force_max"),
     ("Metrics/psm_contact_force_mean", "psm_contact_force_mean"),
     ("Metrics/psm_contact_force_max", "psm_contact_force_max"),
+    ("Metrics/ur3_contact_force_mean", "ur3_contact_force_mean"),
+    ("Metrics/ur3_contact_force_max", "ur3_contact_force_max"),
+    ("Metrics/tip_goal_error_mean", "tip_goal_error_mean"),
+    ("Metrics/tip_pipe_clearance_mean", "tip_pipe_clearance_mean"),
 )
 
 VECTOR_TRACE_SPECS = (
@@ -59,10 +63,17 @@ TERMINATION_SPECS = (
 )
 
 CSV_FIELDNAMES = (
+    "algorithm",
+    "task",
+    "seed",
+    "checkpoint",
     "episode_id",
     "steps",
+    "episode_length",
     "return",
     "success",
+    "severe_collision",
+    "time_out",
     "termination_reason",
     "absorbed_count_final",
     "absorbed_ratio_final",
@@ -73,6 +84,13 @@ CSV_FIELDNAMES = (
     "raw_contact_force_max_final",
     "psm_contact_force_mean_final",
     "psm_contact_force_max_final",
+    "ur3_contact_force_mean_final",
+    "ur3_contact_force_max_final",
+    "ur3_contact_force_max",
+    "tip_goal_error_mean_final",
+    "tip_goal_error_mean",
+    "tip_pipe_clearance_mean_final",
+    "tip_pipe_clearance_mean",
     "initial_particle_count",
     "success_threshold",
     "episode_reward_absorb_reward",
@@ -330,13 +348,21 @@ def _build_episode_summary(
     episode_return: float,
     episode_steps: int,
     log_data: Mapping[str, Any],
+    checkpoint_path: str,
 ) -> dict[str, Any]:
     termination_reason = _resolve_termination_reason(log_data)
     row: dict[str, Any] = {
+        "algorithm": "rsl_rl_ppo",
+        "task": args_cli.task,
+        "seed": args_cli.seed,
+        "checkpoint": os.path.abspath(checkpoint_path),
         "episode_id": int(episode_id),
         "steps": int(episode_steps),
+        "episode_length": int(episode_steps),
         "return": float(episode_return),
         "success": termination_reason == "success",
+        "severe_collision": termination_reason == "severe_collision",
+        "time_out": termination_reason == "time_out",
         "termination_reason": termination_reason,
     }
 
@@ -346,6 +372,9 @@ def _build_episode_summary(
         )
     for log_key, field_name in EPISODE_REWARD_SPECS:
         row[field_name] = _extract_log_value(log_data, log_key)
+    row["ur3_contact_force_max"] = _extract_log_value(log_data, "Metrics/ur3_contact_force_max")
+    row["tip_goal_error_mean"] = _extract_log_value(log_data, "Metrics/tip_goal_error_mean")
+    row["tip_pipe_clearance_mean"] = _extract_log_value(log_data, "Metrics/tip_pipe_clearance_mean")
 
     return row
 
@@ -387,7 +416,18 @@ def _build_run_summary(
         termination_rates = {reason: 0.0 for reason in termination_counts}
 
     aggregates: dict[str, dict[str, float] | None] = {}
-    aggregate_fields = [field for field in CSV_FIELDNAMES if field not in {"episode_id", "success", "termination_reason"}]
+    non_numeric_fields = {
+        "algorithm",
+        "task",
+        "seed",
+        "checkpoint",
+        "episode_id",
+        "success",
+        "severe_collision",
+        "time_out",
+        "termination_reason",
+    }
+    aggregate_fields = [field for field in CSV_FIELDNAMES if field not in non_numeric_fields]
     for field in aggregate_fields:
         aggregates[field] = _stats_from_values([float(row[field]) for row in episode_rows])
 
@@ -396,6 +436,7 @@ def _build_run_summary(
         success_rate = float(np.mean([float(bool(row["success"])) for row in episode_rows]))
 
     return {
+        "algorithm": "rsl_rl_ppo",
         "task": args_cli.task,
         "checkpoint_path": os.path.abspath(checkpoint_path),
         "output_dir": str(output_dir),
@@ -409,6 +450,8 @@ def _build_run_summary(
         "video_enabled": bool(args_cli.video),
         "seed": args_cli.seed,
         "success_rate": success_rate,
+        "severe_collision_rate": termination_rates.get("severe_collision"),
+        "time_out_rate": termination_rates.get("time_out"),
         "termination_counts": termination_counts,
         "termination_rates": termination_rates,
         "aggregates": aggregates,
@@ -565,6 +608,7 @@ def main():
                         episode_return=current_episode_return,
                         episode_steps=current_episode_steps,
                         log_data=log_data,
+                        checkpoint_path=resume_path,
                     )
                     completed_rows.append(episode_row)
                     saved_trajectories.append(_pack_trace(current_trace, episode_id=episode_id, terminated=True))
