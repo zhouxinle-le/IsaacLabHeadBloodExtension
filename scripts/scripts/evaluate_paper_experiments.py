@@ -198,7 +198,7 @@ def _state_dreamer(seed: int, args: argparse.Namespace) -> EvalRun | None:
         args,
         "Isaac-Ur3-Blood-Pipe-State-Direct-v0",
         "state_dreamer_v3",
-        f"logs/r2dreamer/ur3_blood_pipe_state_dreamer/seed_{seed}_{args.run_label}",
+        f"logs/r2dreamer/ur3_blood_pipe_state_dreamer/*seed_{seed}_{args.run_label}",
     )
 
 
@@ -208,7 +208,7 @@ def _vision_dreamer(seed: int, args: argparse.Namespace) -> EvalRun | None:
         args,
         "Isaac-Ur3-Blood-Pipe-Vision-Wrist-Direct-v0",
         "vision_dreamer_v3",
-        f"logs/r2dreamer/ur3_blood_pipe_vision_wrist_dreamer/seed_{seed}_{args.run_label}",
+        f"logs/r2dreamer/ur3_blood_pipe_vision_wrist_dreamer/*seed_{seed}_{args.run_label}",
     )
 
 

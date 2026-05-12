@@ -5,6 +5,7 @@ import argparse
 import shlex
 import subprocess
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 
@@ -34,6 +35,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--env-device", type=str, default="cpu", help="Dreamer Isaac environment device.")
     parser.add_argument("--agent-device", type=str, default="cuda:0", help="Dreamer learner device.")
     parser.add_argument("--run-label", type=str, default="600k", help="Suffix used in run names and logdirs.")
+    parser.add_argument(
+        "--dreamer-run-stamp",
+        type=str,
+        default=None,
+        help="Timestamp/run id prepended to Dreamer logdirs. Defaults to current time.",
+    )
     parser.add_argument("--dreamer-total-steps", type=int, default=600_000, help="Dreamer true env steps.")
     parser.add_argument("--rsl-max-iterations", type=int, default=6250, help="RSL-RL PPO iterations.")
     parser.add_argument("--skrl-max-iterations", type=int, default=1563, help="skrl PPO iterations.")
@@ -43,11 +50,18 @@ def _parse_args() -> argparse.Namespace:
         default="all",
         help="Limit the generated command group.",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if args.dreamer_run_stamp is None:
+        args.dreamer_run_stamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    return args
 
 
 def _repo_path(*parts: str) -> str:
     return str(REPO_ROOT.joinpath(*parts))
+
+
+def _dreamer_run_name(seed: int, args: argparse.Namespace) -> str:
+    return f"{args.dreamer_run_stamp}_seed_{seed}_{args.run_label}"
 
 
 def _rsl_state(seed: int, args: argparse.Namespace) -> ExperimentCommand:
@@ -123,7 +137,7 @@ def _dreamer_state(seed: int, args: argparse.Namespace) -> ExperimentCommand:
             "--disable_fabric",
             "--enable_cameras",
             "--logdir",
-            _repo_path("logs", "r2dreamer", "ur3_blood_pipe_state_dreamer", f"seed_{seed}_{args.run_label}"),
+            _repo_path("logs", "r2dreamer", "ur3_blood_pipe_state_dreamer", _dreamer_run_name(seed, args)),
             f"trainer.total_steps={args.dreamer_total_steps}",
         ],
     )
@@ -157,7 +171,7 @@ def _dreamer_vision(seed: int, args: argparse.Namespace) -> ExperimentCommand:
                 "logs",
                 "r2dreamer",
                 "ur3_blood_pipe_vision_wrist_dreamer",
-                f"seed_{seed}_{args.run_label}",
+                _dreamer_run_name(seed, args),
             ),
             f"trainer.total_steps={args.dreamer_total_steps}",
         ],

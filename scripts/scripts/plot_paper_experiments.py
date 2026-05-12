@@ -227,12 +227,12 @@ def _discover_curves(seeds: list[int]) -> list[Curve]:
     curves: list[Curve] = []
     for seed in seeds:
         state_rsl = _find_latest(f"logs/rsl_rl/ur3_blood_pipe_state_direct/*seed_{seed}_{args.run_label}")
-        state_dreamer = _find_latest(f"logs/r2dreamer/ur3_blood_pipe_state_dreamer/seed_{seed}_{args.run_label}")
+        state_dreamer = _find_latest(f"logs/r2dreamer/ur3_blood_pipe_state_dreamer/*seed_{seed}_{args.run_label}")
         vision_skrl = _find_latest(
             f"logs/skrl/ur3_blood_pipe_vision_direct_wrist/*seed_{seed}_{args.run_label}"
         )
         vision_dreamer = _find_latest(
-            f"logs/r2dreamer/ur3_blood_pipe_vision_wrist_dreamer/seed_{seed}_{args.run_label}"
+            f"logs/r2dreamer/ur3_blood_pipe_vision_wrist_dreamer/*seed_{seed}_{args.run_label}"
         )
 
         if state_rsl is None:

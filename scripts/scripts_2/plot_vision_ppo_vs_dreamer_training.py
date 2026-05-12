@@ -69,6 +69,7 @@ class AggregateCurve:
     mean: np.ndarray
     std: np.ndarray
     values: np.ndarray
+    raw_values: np.ndarray
 
 
 METRICS = (
@@ -157,7 +158,12 @@ def _parse_args() -> argparse.Namespace:
         help="Real environment step horizon. Default is 500k because the Dreamer runs stop there.",
     )
     parser.add_argument("--points", type=int, default=501, help="Interpolation points.")
-    parser.add_argument("--smooth-points", type=int, default=5, help="Trailing smoothing window in logged points.")
+    parser.add_argument(
+        "--smooth-points",
+        type=int,
+        default=21,
+        help="Trailing smoothing window after interpolation to the shared real-step grid.",
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -298,7 +304,7 @@ def _smooth(y: np.ndarray, window: int) -> np.ndarray:
     return out
 
 
-def _interpolate(curve: RawCurve, grid: np.ndarray, smooth_points: int) -> np.ndarray:
+def _interpolate(curve: RawCurve, grid: np.ndarray) -> np.ndarray:
     mask = np.isfinite(curve.x) & np.isfinite(curve.y)
     x = curve.x[mask]
     y = curve.y[mask]
@@ -309,14 +315,15 @@ def _interpolate(curve: RawCurve, grid: np.ndarray, smooth_points: int) -> np.nd
     x = x[order]
     y = y[order]
     unique_x, unique_indices = np.unique(x, return_index=True)
-    unique_y = _smooth(y[unique_indices], smooth_points)
+    unique_y = y[unique_indices]
     return np.interp(grid, unique_x, unique_y)
 
 
 def _aggregate(curves: list[RawCurve], grid: np.ndarray, smooth_points: int) -> AggregateCurve:
     if not curves:
         raise ValueError("Cannot aggregate an empty curve list.")
-    values = np.vstack([_interpolate(curve, grid, smooth_points) for curve in curves])
+    raw_values = np.vstack([_interpolate(curve, grid) for curve in curves])
+    values = np.vstack([_smooth(seed_values, smooth_points) for seed_values in raw_values])
     return AggregateCurve(
         group=curves[0].group,
         metric=curves[0].metric,
@@ -324,6 +331,7 @@ def _aggregate(curves: list[RawCurve], grid: np.ndarray, smooth_points: int) -> 
         mean=np.mean(values, axis=0),
         std=np.std(values, axis=0),
         values=values,
+        raw_values=raw_values,
     )
 
 
@@ -378,13 +386,6 @@ def _plot(aggregates: dict[str, dict[str, AggregateCurve]], output_path: Path) -
     for ax, spec in zip(axes.ravel(), METRICS):
         for group in ("ppo", "dreamer"):
             curve = aggregates[spec.key][group]
-            ax.plot(
-                curve.x,
-                curve.mean,
-                color=GROUP_COLORS[group],
-                linewidth=1.9,
-                label=GROUP_LABELS[group],
-            )
             ax.fill_between(
                 curve.x,
                 curve.mean - curve.std,
@@ -392,6 +393,15 @@ def _plot(aggregates: dict[str, dict[str, AggregateCurve]], output_path: Path) -
                 color=GROUP_COLORS[group],
                 alpha=0.16,
                 linewidth=0.0,
+                zorder=2,
+            )
+            ax.plot(
+                curve.x,
+                curve.mean,
+                color=GROUP_COLORS[group],
+                linewidth=2.2,
+                label=GROUP_LABELS[group],
+                zorder=3,
             )
         _style_axis(ax, spec)
 
@@ -421,6 +431,8 @@ def _write_csv(aggregates: dict[str, dict[str, AggregateCurve]], output_path: Pa
     fieldnames = ["metric", "env_steps", "ppo_mean", "ppo_std", "dreamer_mean", "dreamer_std"]
     fieldnames.extend(f"ppo_seed_{index}" for index in range(max_ppo_runs))
     fieldnames.extend(f"dreamer_seed_{index}" for index in range(max_dreamer_runs))
+    fieldnames.extend(f"ppo_raw_seed_{index}" for index in range(max_ppo_runs))
+    fieldnames.extend(f"dreamer_raw_seed_{index}" for index in range(max_dreamer_runs))
 
     with output_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -441,6 +453,10 @@ def _write_csv(aggregates: dict[str, dict[str, AggregateCurve]], output_path: Pa
                     row[f"ppo_seed_{run_index}"] = float(ppo.values[run_index, index])
                 for run_index in range(dreamer.values.shape[0]):
                     row[f"dreamer_seed_{run_index}"] = float(dreamer.values[run_index, index])
+                for run_index in range(ppo.raw_values.shape[0]):
+                    row[f"ppo_raw_seed_{run_index}"] = float(ppo.raw_values[run_index, index])
+                for run_index in range(dreamer.raw_values.shape[0]):
+                    row[f"dreamer_raw_seed_{run_index}"] = float(dreamer.raw_values[run_index, index])
                 writer.writerow(row)
 
 
