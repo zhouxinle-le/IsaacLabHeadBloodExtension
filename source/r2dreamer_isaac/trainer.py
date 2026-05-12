@@ -60,6 +60,8 @@ class IsaacOnlineTrainer:
         self.latest_env_metrics: dict[str, Any] = {}
         self._recent_episode_scores: deque[float] = deque(maxlen=self._RECENT_EPISODE_WINDOW)
         self._recent_episode_lengths: deque[float] = deque(maxlen=self._RECENT_EPISODE_WINDOW)
+        self._interval_episode_scores: list[float] = []
+        self._interval_episode_lengths: list[float] = []
         self._recent_episode_metrics: dict[str, deque[float]] = defaultdict(
             lambda: deque(maxlen=self._RECENT_EPISODE_WINDOW)
         )
@@ -148,6 +150,21 @@ class IsaacOnlineTrainer:
                 continue
             self.logger.scalar(self._recent_metric_name(name), sum(values) / len(values))
 
+    def _log_interval_episode_metrics(self) -> None:
+        if not self._interval_episode_scores:
+            return
+        self.logger.scalar(
+            "rollout/interval_episode_score_mean",
+            sum(self._interval_episode_scores) / len(self._interval_episode_scores),
+        )
+        self.logger.scalar(
+            "rollout/interval_episode_length_mean",
+            sum(self._interval_episode_lengths) / len(self._interval_episode_lengths),
+        )
+        self.logger.scalar("rollout/interval_episode_count", len(self._interval_episode_scores))
+        self._interval_episode_scores.clear()
+        self._interval_episode_lengths.clear()
+
     def _log_env_metrics(self, env_metrics: dict[str, Any]) -> None:
         for name, value in env_metrics.items():
             if isinstance(value, torch.Tensor):
@@ -166,6 +183,8 @@ class IsaacOnlineTrainer:
             length = runtime["episode_lengths"][index].item()
             self._recent_episode_scores.append(float(score))
             self._recent_episode_lengths.append(float(length))
+            self._interval_episode_scores.append(float(score))
+            self._interval_episode_lengths.append(float(length))
             self.logger.scalar("episode/score", score)
             self.logger.scalar("episode/length", length)
             self.logger.write(runtime["global_step"] + index)
@@ -367,6 +386,7 @@ class IsaacOnlineTrainer:
                         self.logger.scalar(f"train/{name}", value)
                     self.logger.scalar("train/opt/updates", runtime["update_count"])
                     self._log_env_metrics(self.latest_env_metrics)
+                    self._log_interval_episode_metrics()
                     self._log_recent_episode_metrics()
                     self.logger.write(int(runtime["global_step"]), fps=True)
 

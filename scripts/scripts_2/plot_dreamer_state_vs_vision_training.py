@@ -75,7 +75,7 @@ METRICS = (
         key="mean_episode_return",
         title="平均回合回报",
         ylabel="平均回合回报",
-        tags=("rollout/recent_episode_score_mean",),
+        tags=("rollout/interval_episode_score_mean", "rollout/recent_episode_score_mean"),
     ),
     MetricSpec(
         key="success_rate",

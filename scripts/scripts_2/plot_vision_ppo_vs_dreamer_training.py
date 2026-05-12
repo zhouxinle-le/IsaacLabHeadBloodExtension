@@ -78,7 +78,7 @@ METRICS = (
         title="平均回合回报",
         ylabel="平均回合回报",
         ppo_tags=("Reward / Total reward (mean)",),
-        dreamer_tags=("rollout/recent_episode_score_mean",),
+        dreamer_tags=("rollout/interval_episode_score_mean", "rollout/recent_episode_score_mean"),
     ),
     MetricSpec(
         key="success_rate",
