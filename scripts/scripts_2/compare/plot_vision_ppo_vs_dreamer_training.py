@@ -17,7 +17,7 @@ from matplotlib.ticker import FuncFormatter
 import numpy as np
 
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 FIGURE_DPI = 300
 GRID_COLOR = "#E3E3E3"
 
@@ -172,7 +172,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("scripts/scripts_2/vision_ppo_vs_dreamer_500k"),
+        default=Path("scripts/scripts_2/compare/vision_ppo_vs_dreamer_500k"),
         help="Output directory for figures and CSV files.",
     )
     return parser.parse_args()
@@ -221,7 +221,7 @@ def _load_ppo_curve(run_dir: Path, run_index: int, spec: MetricSpec, step_scale:
     except ModuleNotFoundError as exc:
         raise ModuleNotFoundError(
             "tensorboard is required. Run with the Isaac environment, for example: "
-            "conda run -n isaacsim-4.2 python scripts/scripts_2/plot_vision_ppo_vs_dreamer_training.py"
+            "conda run -n isaacsim-4.2 python scripts/scripts_2/compare/plot_vision_ppo_vs_dreamer_training.py"
         ) from exc
 
     if not run_dir.is_dir():
