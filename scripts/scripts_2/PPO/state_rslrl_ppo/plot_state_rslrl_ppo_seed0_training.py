@@ -105,7 +105,7 @@ def _parse_args() -> argparse.Namespace:
         default=1.0,
         help="Scale RSL-RL PPO iterations on the x-axis. Defaults to 1.",
     )
-    parser.add_argument("--color", type=str, default="#D67AB2", help="Line color, e.g. '#D67AB2'.")
+    parser.add_argument("--color", type=str, default="#26A7E1", help="Line color, e.g. '#26A7E1'.")
     return parser.parse_args()
 
 

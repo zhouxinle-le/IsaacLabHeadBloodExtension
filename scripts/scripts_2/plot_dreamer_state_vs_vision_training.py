@@ -34,8 +34,8 @@ GROUP_LABELS = {
     "vision": "Vision Wrist Dreamer",
 }
 GROUP_COLORS = {
-    "state": "#FAC77B",
-    "vision": "#69B18B",
+    "state": "#E95412",
+    "vision": "#E274A9",
 }
 
 
@@ -314,12 +314,13 @@ def _style_axis(ax, spec: MetricSpec) -> None:
         ax.set_ylim(-0.03, 1.03)
 
 
-def _plot(aggregates: dict[str, dict[str, AggregateCurve]], output_path: Path) -> None:
-    # Four-panel layout kept for reference:
+def _plot(aggregates: dict[str, dict[str, AggregateCurve]], output_path: Path) -> list[Path]:
+    saved_paths: list[Path] = []
+    # Combined layouts kept for reference:
     # fig, axes = plt.subplots(2, 2, figsize=(7.2, 5.4), dpi=FIGURE_DPI, sharex=True)
-    fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.0), dpi=FIGURE_DPI, sharex=True)
-    axes = np.atleast_1d(axes).ravel()
-    for ax, spec in zip(axes, METRICS):
+    # fig, axes = plt.subplots(1, 2, figsize=(7.2, 3.0), dpi=FIGURE_DPI, sharex=True)
+    for spec in METRICS:
+        fig, ax = plt.subplots(1, 1, figsize=(4.8, 3.2), dpi=FIGURE_DPI)
         for group in ("state", "vision"):
             curve = aggregates[spec.key][group]
             ax.fill_between(
@@ -350,10 +351,13 @@ def _plot(aggregates: dict[str, dict[str, AggregateCurve]], output_path: Path) -
             fancybox=True,
         )
         legend.get_frame().set_linewidth(0.8)
-    fig.tight_layout()
-    fig.savefig(output_path.with_suffix(".png"), dpi=FIGURE_DPI)
-    fig.savefig(output_path.with_suffix(".pdf"))
-    plt.close(fig)
+        fig.tight_layout()
+        metric_output = output_path.with_name(f"{output_path.name}_{spec.key}")
+        fig.savefig(metric_output.with_suffix(".png"), dpi=FIGURE_DPI)
+        fig.savefig(metric_output.with_suffix(".pdf"))
+        plt.close(fig)
+        saved_paths.append(metric_output.with_suffix(".png"))
+    return saved_paths
 
 
 def _write_csv(aggregates: dict[str, dict[str, AggregateCurve]], output_path: Path) -> None:
@@ -399,12 +403,13 @@ def main() -> None:
 
     aggregates = _read_all_curves(args)
     output_base = output_dir / "dreamer_state_vs_vision_training"
-    _plot(aggregates, output_base)
+    figure_paths = _plot(aggregates, output_base)
     csv_path = output_dir / "dreamer_state_vs_vision_training_curves.csv"
     _write_csv(aggregates, csv_path)
 
-    print(f"[INFO] Saved: {output_base.with_suffix('.png')}")
-    print(f"[INFO] Saved: {output_base.with_suffix('.pdf')}")
+    for path in figure_paths:
+        print(f"[INFO] Saved: {path}")
+        print(f"[INFO] Saved: {path.with_suffix('.pdf')}")
     print(f"[INFO] Saved: {csv_path}")
 
 

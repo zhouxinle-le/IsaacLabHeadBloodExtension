@@ -111,7 +111,7 @@ def _parse_args() -> argparse.Namespace:
         default=1.0,
         help="Scale skrl trainer steps on the x-axis. Defaults to 1.",
     )
-    parser.add_argument("--color", type=str, default="#899DC6", help="Line color, e.g. '#899DC6'.")
+    parser.add_argument("--color", type=str, default="#13AF68", help="Line color, e.g. '#13AF68'.")
     return parser.parse_args()
 
 
