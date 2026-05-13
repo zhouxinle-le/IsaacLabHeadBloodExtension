@@ -36,8 +36,8 @@ GROUP_LABELS = {
     "dreamer": "Vision Wrist Dreamer",
 }
 GROUP_COLORS = {
-    "ppo": "#A6BC5E",
-    "dreamer": "#E7BD35",
+    "ppo": "#899DC6",
+    "dreamer": "#69B18B",
 }
 
 

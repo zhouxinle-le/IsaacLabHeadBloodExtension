@@ -34,8 +34,8 @@ GROUP_LABELS = {
     "vision": "Vision Wrist Dreamer",
 }
 GROUP_COLORS = {
-    "state": "#0072B2",
-    "vision": "#CC79A7",
+    "state": "#FAC77B",
+    "vision": "#69B18B",
 }
 
 

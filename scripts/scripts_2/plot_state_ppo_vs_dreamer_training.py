@@ -35,8 +35,8 @@ GROUP_LABELS = {
     "dreamer": "State Dreamer",
 }
 GROUP_COLORS = {
-    "ppo": "#5E90DB",
-    "dreamer": "#0072B2",
+    "ppo": "#D67AB2",
+    "dreamer": "#FAC77B",
 }
 
 

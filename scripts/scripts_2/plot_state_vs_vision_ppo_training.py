@@ -34,8 +34,8 @@ GROUP_LABELS = {
     "vision": "Vision Wrist PPO (skrl)",
 }
 GROUP_COLORS = {
-    "state": "#5E90DB",
-    "vision": "#A6BC5E",
+    "state": "#D67AB2",
+    "vision": "#899DC6",
 }
 
 
