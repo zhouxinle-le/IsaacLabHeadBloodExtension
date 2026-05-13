@@ -45,7 +45,7 @@ class Ur3BloodPipeVisionWristEnvCfg(DirectRLEnvCfg):
     obs_camera_height = 64
     obs_camera_width = 64
     position_observation_dim = 5
-    show_policy_input_image = False
+    show_policy_input_image = True
     policy_input_window_name = "UR3 Pipe Policy Input - Env 0"
     observation_space = {
         "camera": [num_channels, obs_camera_height, obs_camera_width],
