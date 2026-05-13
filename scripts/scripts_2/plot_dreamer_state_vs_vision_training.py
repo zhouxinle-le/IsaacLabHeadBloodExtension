@@ -300,7 +300,7 @@ def _read_all_curves(args: argparse.Namespace) -> dict[str, dict[str, AggregateC
 
 def _style_axis(ax, spec: MetricSpec) -> None:
     ax.set_title(spec.title, pad=8, weight="normal")
-    ax.set_xlabel("真实环境交互步数", labelpad=6)
+    ax.set_xlabel("真实环境交互步数(transitions)", labelpad=6)
     ax.set_ylabel(spec.ylabel, labelpad=6)
     ax.xaxis.set_major_formatter(FuncFormatter(_format_steps))
     ax.grid(True, axis="both", color=GRID_COLOR, linestyle="--", linewidth=0.6, alpha=0.85)

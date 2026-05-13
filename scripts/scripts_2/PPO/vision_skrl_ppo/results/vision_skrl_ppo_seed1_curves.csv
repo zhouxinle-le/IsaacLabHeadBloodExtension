@@ -1,0 +1,499 @@
+metric,tag,trainer_step,raw_value,smoothed_value
+train_mean_reward,Reward / Total reward (mean),800.0,-1.428059458732605,-1.428059458732605
+train_mean_reward,Reward / Total reward (mean),1600.0,61.16926956176758,11.09140634536743
+train_mean_reward,Reward / Total reward (mean),2400.0,72.1780776977539,23.30874061584472
+train_mean_reward,Reward / Total reward (mean),3200.0,70.75350952148438,32.797694396972645
+train_mean_reward,Reward / Total reward (mean),4000.0,61.6436767578125,38.566890869140614
+train_mean_reward,Reward / Total reward (mean),4800.0,-19.79073143005371,26.89536640930175
+train_mean_reward,Reward / Total reward (mean),5600.0,65.4451904296875,34.605331213378896
+train_mean_reward,Reward / Total reward (mean),6400.0,86.35520935058594,44.9553068408203
+train_mean_reward,Reward / Total reward (mean),7200.0,93.72447204589844,54.709139881835924
+train_mean_reward,Reward / Total reward (mean),8000.0,65.576416015625,56.88259510859374
+train_mean_reward,Reward / Total reward (mean),8800.0,67.28067016601562,58.96221012007812
+train_mean_reward,Reward / Total reward (mean),9600.0,71.74337768554688,61.51844363317187
+train_mean_reward,Reward / Total reward (mean),11200.0,36.457298278808594,56.50621456229922
+train_mean_reward,Reward / Total reward (mean),12000.0,101.49562072753906,65.50409579534718
+train_mean_reward,Reward / Total reward (mean),12800.0,13.314984321594238,55.0662735005966
+train_mean_reward,Reward / Total reward (mean),13600.0,75.16704559326172,59.08642791912962
+train_mean_reward,Reward / Total reward (mean),14400.0,29.05288314819336,53.079718964942366
+train_mean_reward,Reward / Total reward (mean),15200.0,47.47560501098633,51.958896174151164
+train_mean_reward,Reward / Total reward (mean),16000.0,83.1187515258789,58.190867244496715
+train_mean_reward,Reward / Total reward (mean),16800.0,79.6371841430664,62.48013062421066
+train_mean_reward,Reward / Total reward (mean),17600.0,90.24052429199219,68.03220935776696
+train_mean_reward,Reward / Total reward (mean),18400.0,90.88949584960938,72.60366665613545
+train_mean_reward,Reward / Total reward (mean),19200.0,76.52754211425781,73.38844174775991
+train_mean_reward,Reward / Total reward (mean),20000.0,75.6466293334961,73.84007926490715
+train_mean_reward,Reward / Total reward (mean),20800.0,86.84188842773438,76.44044109747259
+train_mean_reward,Reward / Total reward (mean),21600.0,87.7606430053711,78.70448147905229
+train_mean_reward,Reward / Total reward (mean),22400.0,90.42406463623047,81.04839811048792
+train_mean_reward,Reward / Total reward (mean),23200.0,91.97908020019531,83.2345345284294
+train_mean_reward,Reward / Total reward (mean),24000.0,92.71418762207031,85.13046514715758
+train_mean_reward,Reward / Total reward (mean),24800.0,92.8538589477539,86.67514390727685
+train_mean_reward,Reward / Total reward (mean),25600.0,84.0685043334961,86.15381599252069
+train_mean_reward,Reward / Total reward (mean),26400.0,82.86432647705078,85.49591808942671
+train_mean_reward,Reward / Total reward (mean),27200.0,94.44979858398438,87.28669418833823
+train_mean_reward,Reward / Total reward (mean),28000.0,85.30411529541016,86.89017840975261
+train_mean_reward,Reward / Total reward (mean),28800.0,88.54033660888672,87.22021004957942
+train_mean_reward,Reward / Total reward (mean),29600.0,77.78995513916016,85.33415906749558
+train_mean_reward,Reward / Total reward (mean),30400.0,88.40658569335938,85.94864439266834
+train_mean_reward,Reward / Total reward (mean),31200.0,91.0048599243164,86.95988749899794
+train_mean_reward,Reward / Total reward (mean),32000.0,90.35623931884766,87.63915786296789
+train_mean_reward,Reward / Total reward (mean),32800.0,86.6778564453125,87.44689757943682
+train_mean_reward,Reward / Total reward (mean),33600.0,101.23812866210938,90.20514379597132
+train_mean_reward,Reward / Total reward (mean),34400.0,83.75843811035156,88.91580265884737
+train_mean_reward,Reward / Total reward (mean),35200.0,87.73492431640625,88.67962699035914
+train_mean_reward,Reward / Total reward (mean),36000.0,100.41166687011719,91.02603496631075
+train_mean_reward,Reward / Total reward (mean),36800.0,85.96981811523438,90.01479159609546
+train_mean_reward,Reward / Total reward (mean),37600.0,88.15950775146484,89.64373482716934
+train_mean_reward,Reward / Total reward (mean),38400.0,101.37100982666016,91.9891898270675
+train_mean_reward,Reward / Total reward (mean),39200.0,95.0865707397461,92.60866600960321
+train_mean_reward,Reward / Total reward (mean),40000.0,99.0885238647461,93.90463758063179
+train_mean_reward,Reward / Total reward (mean),40800.0,98.77933502197266,94.87957706889996
+train_mean_reward,Reward / Total reward (mean),41600.0,83.64038848876953,92.63173935287388
+train_mean_reward,Reward / Total reward (mean),42400.0,86.260009765625,91.35739343542411
+train_mean_reward,Reward / Total reward (mean),43200.0,89.4686050415039,90.97963575664006
+train_mean_reward,Reward / Total reward (mean),44000.0,101.9183120727539,93.16737101986283
+train_mean_reward,Reward / Total reward (mean),44800.0,89.29947662353516,92.39379214059728
+train_mean_reward,Reward / Total reward (mean),45600.0,86.69987487792969,91.25500868806377
+train_mean_reward,Reward / Total reward (mean),46400.0,91.00167846679688,91.20434264381038
+train_mean_reward,Reward / Total reward (mean),47200.0,99.57373046875,92.8782202087983
+train_mean_reward,Reward / Total reward (mean),48000.0,85.87796783447266,91.47816973393316
+train_mean_reward,Reward / Total reward (mean),48800.0,85.61821746826172,90.30617928079887
+train_mean_reward,Reward / Total reward (mean),49600.0,98.39763641357422,91.92447070735395
+train_mean_reward,Reward / Total reward (mean),50400.0,88.57827758789062,91.2552320834613
+train_mean_reward,Reward / Total reward (mean),51200.0,87.1324691772461,90.43067950221825
+train_mean_reward,Reward / Total reward (mean),52000.0,78.63400268554688,88.07134413888397
+train_mean_reward,Reward / Total reward (mean),52800.0,89.4146499633789,88.34000530378296
+train_mean_reward,Reward / Total reward (mean),53600.0,91.21013641357422,88.91403152574121
+train_mean_reward,Reward / Total reward (mean),54400.0,87.13090515136719,88.55740625086639
+train_mean_reward,Reward / Total reward (mean),55200.0,95.25706481933594,89.8973379645603
+train_mean_reward,Reward / Total reward (mean),56000.0,89.71284484863281,89.86043934137479
+train_mean_reward,Reward / Total reward (mean),56800.0,82.1327133178711,88.31489413667404
+train_mean_reward,Reward / Total reward (mean),57600.0,75.57310485839844,85.76653628101892
+train_mean_reward,Reward / Total reward (mean),58400.0,90.12024688720703,86.63727840225654
+train_mean_reward,Reward / Total reward (mean),59200.0,93.50163269042969,88.01014925989116
+train_mean_reward,Reward / Total reward (mean),60000.0,97.02462768554688,89.81304494502231
+train_mean_reward,Reward / Total reward (mean),60800.0,71.50577545166016,86.15159104634988
+train_mean_reward,Reward / Total reward (mean),61600.0,101.47810363769531,89.21689356461897
+train_mean_reward,Reward / Total reward (mean),62400.0,76.55810546875,86.68513594544517
+train_mean_reward,Reward / Total reward (mean),63200.0,96.74615478515625,88.69733971338738
+train_mean_reward,Reward / Total reward (mean),64000.0,74.52274322509766,85.86242041572943
+train_mean_reward,Reward / Total reward (mean),64800.0,101.83798217773438,89.05753276813041
+train_mean_reward,Reward / Total reward (mean),65600.0,94.98870849609375,90.24376791372309
+train_mean_reward,Reward / Total reward (mean),66400.0,99.80636596679688,92.15628752433786
+train_mean_reward,Reward / Total reward (mean),67200.0,89.1944351196289,91.56391704339606
+train_mean_reward,Reward / Total reward (mean),68000.0,91.17745208740234,91.48662405219731
+train_mean_reward,Reward / Total reward (mean),68800.0,90.16889953613281,91.22307914898441
+train_mean_reward,Reward / Total reward (mean),69600.0,83.85292053222656,89.74904742563284
+train_mean_reward,Reward / Total reward (mean),70400.0,86.55632019042969,89.11050197859221
+train_mean_reward,Reward / Total reward (mean),71200.0,83.71195220947266,88.0307920247683
+train_mean_reward,Reward / Total reward (mean),72000.0,88.15861511230469,88.05635664227557
+train_mean_reward,Reward / Total reward (mean),72800.0,87.41863250732422,87.9288118152853
+train_mean_reward,Reward / Total reward (mean),73600.0,81.01871490478516,86.54679243318527
+train_mean_reward,Reward / Total reward (mean),74400.0,80.54878997802734,85.34719194215369
+train_mean_reward,Reward / Total reward (mean),75200.0,101.39256286621094,88.55626612696513
+train_mean_reward,Reward / Total reward (mean),76000.0,95.39924621582031,89.92486214473617
+train_mean_reward,Reward / Total reward (mean),76800.0,98.82398223876953,91.70468616354285
+train_mean_reward,Reward / Total reward (mean),77600.0,97.46623229980469,92.8569953907952
+train_mean_reward,Reward / Total reward (mean),78400.0,78.94293975830078,90.07418426429632
+train_mean_reward,Reward / Total reward (mean),79200.0,93.51582336425781,90.76251208428862
+train_mean_reward,Reward / Total reward (mean),80000.0,58.98125076293945,84.40625982001879
+train_mean_reward,Reward / Total reward (mean),80800.0,62.408634185791016,80.00673469317324
+train_mean_reward,Reward / Total reward (mean),81600.0,100.72437286376953,84.15026232729251
+train_mean_reward,Reward / Total reward (mean),82400.0,69.20991516113281,81.16219289406058
+train_mean_reward,Reward / Total reward (mean),83200.0,85.21855926513672,81.97346616827582
+train_mean_reward,Reward / Total reward (mean),84000.0,94.6932373046875,84.51742039555816
+train_mean_reward,Reward / Total reward (mean),84800.0,96.1054458618164,86.8350254888098
+train_mean_reward,Reward / Total reward (mean),85600.0,90.42769622802734,87.5535596366533
+train_mean_reward,Reward / Total reward (mean),86400.0,83.33898162841797,86.71064403500623
+train_mean_reward,Reward / Total reward (mean),87200.0,89.8606185913086,87.3406389462667
+train_mean_reward,Reward / Total reward (mean),88000.0,92.1724624633789,88.30700364968914
+train_mean_reward,Reward / Total reward (mean),88800.0,101.04751586914062,90.85510609357944
+train_mean_reward,Reward / Total reward (mean),89600.0,55.16749954223633,83.71758478331083
+train_mean_reward,Reward / Total reward (mean),90400.0,95.68014526367188,86.11009687938304
+train_mean_reward,Reward / Total reward (mean),91200.0,91.078125,87.10370250350644
+train_mean_reward,Reward / Total reward (mean),92000.0,101.49818420410156,89.98259884362547
+train_mean_reward,Reward / Total reward (mean),92800.0,37.786582946777344,79.54339566425584
+train_mean_reward,Reward / Total reward (mean),93600.0,97.24154663085938,83.08302585757654
+train_mean_reward,Reward / Total reward (mean),94400.0,94.95953369140625,85.45832742434249
+train_mean_reward,Reward / Total reward (mean),95200.0,91.9039306640625,86.74744807228649
+train_mean_reward,Reward / Total reward (mean),96000.0,91.15229797363281,87.62841805255574
+train_mean_reward,Reward / Total reward (mean),96800.0,88.95447540283203,87.893629522611
+train_mean_reward,Reward / Total reward (mean),97600.0,85.31092834472656,87.3770892870341
+train_mean_reward,Reward / Total reward (mean),98400.0,86.96922302246094,87.29551603411947
+train_mean_reward,Reward / Total reward (mean),99200.0,81.40789794921875,86.11799241713932
+train_mean_reward,Reward / Total reward (mean),100000.0,94.43202209472656,87.78079835265676
+train_mean_reward,Reward / Total reward (mean),100800.0,95.44359588623047,89.31335785937151
+train_mean_reward,Reward / Total reward (mean),101600.0,94.5267562866211,90.35603754482142
+train_mean_reward,Reward / Total reward (mean),102400.0,89.05003356933594,90.09483674972432
+train_mean_reward,Reward / Total reward (mean),103200.0,85.90267181396484,89.25640376257243
+train_mean_reward,Reward / Total reward (mean),104000.0,93.71638488769531,90.148399987597
+train_mean_reward,Reward / Total reward (mean),104800.0,89.6025161743164,90.03922322494088
+train_mean_reward,Reward / Total reward (mean),105600.0,95.5859146118164,91.148561502316
+train_mean_reward,Reward / Total reward (mean),106400.0,72.69833374023438,87.45851594989968
+train_mean_reward,Reward / Total reward (mean),107200.0,41.33147048950195,78.23310685782013
+train_mean_reward,Reward / Total reward (mean),108000.0,86.36258697509766,79.85900288127564
+train_mean_reward,Reward / Total reward (mean),108800.0,86.67439270019531,81.22208084505958
+train_mean_reward,Reward / Total reward (mean),109600.0,102.04373931884766,85.3864125398172
+train_mean_reward,Reward / Total reward (mean),110400.0,56.44428253173828,79.59798653820143
+train_mean_reward,Reward / Total reward (mean),111200.0,100.07151794433594,83.69269281942833
+train_mean_reward,Reward / Total reward (mean),112000.0,94.61920166015625,85.87799458757391
+train_mean_reward,Reward / Total reward (mean),112800.0,86.15435028076172,85.93326572621147
+train_mean_reward,Reward / Total reward (mean),113600.0,81.9493179321289,85.13647616739496
+train_mean_reward,Reward / Total reward (mean),114400.0,85.88725280761719,85.2866314954394
+train_mean_reward,Reward / Total reward (mean),115200.0,100.94808959960938,88.41892311627339
+train_mean_reward,Reward / Total reward (mean),116000.0,94.01564025878906,89.53826654477652
+train_mean_reward,Reward / Total reward (mean),116800.0,86.59080505371094,88.9487742465634
+train_mean_reward,Reward / Total reward (mean),117600.0,87.07927703857422,88.57487480496557
+train_mean_reward,Reward / Total reward (mean),118400.0,87.68201446533203,88.39630273703887
+train_mean_reward,Reward / Total reward (mean),119200.0,86.19264221191406,87.95557063201392
+train_mean_reward,Reward / Total reward (mean),120000.0,90.2794189453125,88.42034029467362
+train_mean_reward,Reward / Total reward (mean),120800.0,93.88072967529297,89.51241817079749
+train_mean_reward,Reward / Total reward (mean),121600.0,85.01998138427734,88.61393081349345
+train_mean_reward,Reward / Total reward (mean),122400.0,81.50774383544922,87.19269341788461
+train_mean_reward,Reward / Total reward (mean),123200.0,85.02711486816406,86.7595777079405
+train_mean_reward,Reward / Total reward (mean),124000.0,83.08599090576172,86.02486034750473
+train_mean_reward,Reward / Total reward (mean),124800.0,79.20662689208984,84.66121365642175
+train_mean_reward,Reward / Total reward (mean),125600.0,79.80343627929688,83.68965818099677
+train_mean_reward,Reward / Total reward (mean),126400.0,86.00701141357422,84.15312882751226
+train_mean_reward,Reward / Total reward (mean),127200.0,87.39603424072266,84.80170991015434
+train_mean_reward,Reward / Total reward (mean),128000.0,91.9502182006836,86.23141156826019
+train_mean_reward,Reward / Total reward (mean),128800.0,96.73277282714844,88.33168382003784
+train_mean_reward,Reward / Total reward (mean),129600.0,81.21009063720703,86.90736518347167
+train_mean_reward,Reward / Total reward (mean),130400.0,96.4861068725586,88.82311352128906
+train_mean_reward,Reward / Total reward (mean),131200.0,93.87250518798828,89.83299185462892
+train_mean_reward,Reward / Total reward (mean),132000.0,86.82818603515625,89.23203069073438
+train_mean_reward,Reward / Total reward (mean),132800.0,88.4661636352539,89.07885727963827
+train_mean_reward,Reward / Total reward (mean),133600.0,99.93807983398438,91.25070179050749
+train_mean_reward,Reward / Total reward (mean),134400.0,90.32598114013672,91.06575766043335
+train_mean_reward,Reward / Total reward (mean),135200.0,91.64852142333984,91.18231041301465
+train_mean_reward,Reward / Total reward (mean),136000.0,81.87455749511719,89.32075982943516
+train_mean_reward,Reward / Total reward (mean),136800.0,95.63996887207031,90.58460163796218
+train_mean_reward,Reward / Total reward (mean),137600.0,82.92921447753906,89.05352420587755
+train_mean_reward,Reward / Total reward (mean),138400.0,98.37677764892578,90.9181748944872
+train_mean_reward,Reward / Total reward (mean),139200.0,95.30085754394531,91.79471142437882
+train_mean_reward,Reward / Total reward (mean),140000.0,82.73812103271484,89.98339334604601
+train_mean_reward,Reward / Total reward (mean),140800.0,86.99347686767578,89.38541005037196
+train_mean_reward,Reward / Total reward (mean),141600.0,83.99720001220703,88.30776804273897
+train_mean_reward,Reward / Total reward (mean),142400.0,88.75132751464844,88.39647993712086
+train_mean_reward,Reward / Total reward (mean),143200.0,90.2747802734375,88.77214000438418
+train_mean_reward,Reward / Total reward (mean),144000.0,87.23784637451172,88.46528127840969
+train_mean_reward,Reward / Total reward (mean),144800.0,101.02696228027344,90.97761747878243
+train_mean_reward,Reward / Total reward (mean),145600.0,93.51287841796875,91.4846696666197
+train_mean_reward,Reward / Total reward (mean),146400.0,84.87051391601562,90.16183851649888
+train_mean_reward,Reward / Total reward (mean),147200.0,91.30099487304688,90.38966978780847
+train_mean_reward,Reward / Total reward (mean),148000.0,101.43607330322266,92.5989504908913
+train_mean_reward,Reward / Total reward (mean),148800.0,99.31121063232422,93.94140251917787
+train_mean_reward,Reward / Total reward (mean),149600.0,89.35679626464844,93.02448126827198
+train_mean_reward,Reward / Total reward (mean),150400.0,98.03662109375,94.02690923336759
+train_mean_reward,Reward / Total reward (mean),151200.0,99.2928466796875,95.08009672263157
+train_mean_reward,Reward / Total reward (mean),152000.0,84.74624633789062,93.01332664568338
+train_mean_reward,Reward / Total reward (mean),152800.0,84.2127456665039,91.25321044984749
+train_mean_reward,Reward / Total reward (mean),153600.0,87.59304809570312,90.52117797901862
+train_mean_reward,Reward / Total reward (mean),154400.0,89.04399108886719,90.22574060098833
+train_mean_reward,Reward / Total reward (mean),155200.0,98.90876007080078,91.96234449495081
+train_mean_reward,Reward / Total reward (mean),156000.0,97.03392028808594,92.97665965357784
+train_mean_reward,Reward / Total reward (mean),156800.0,100.87066650390625,94.55546102364353
+train_mean_reward,Reward / Total reward (mean),157600.0,41.86454391479492,84.01727760187381
+train_mean_reward,Reward / Total reward (mean),158400.0,98.8541030883789,86.98464269917484
+train_mean_reward,Reward / Total reward (mean),159200.0,87.34576416015625,87.05686699137112
+train_mean_reward,Reward / Total reward (mean),160000.0,94.53055572509766,88.55160473811642
+train_mean_reward,Reward / Total reward (mean),160800.0,76.51852416992188,86.1449886244775
+train_mean_reward,Reward / Total reward (mean),161600.0,84.24717712402344,85.7654263243867
+train_mean_reward,Reward / Total reward (mean),162400.0,92.32486724853516,87.0773145092164
+train_mean_reward,Reward / Total reward (mean),163200.0,82.2248764038086,86.10682688813483
+train_mean_reward,Reward / Total reward (mean),164000.0,97.58045959472656,88.40155342945317
+train_mean_reward,Reward / Total reward (mean),164800.0,97.85501861572266,90.29224646670707
+train_mean_reward,Reward / Total reward (mean),165600.0,88.07720184326172,89.849237542018
+train_mean_reward,Reward / Total reward (mean),166400.0,85.86737823486328,89.05286568058705
+train_mean_reward,Reward / Total reward (mean),167200.0,60.79885482788086,83.4020635100458
+train_mean_reward,Reward / Total reward (mean),168000.0,96.28824615478516,85.97930003899367
+train_mean_reward,Reward / Total reward (mean),168800.0,93.20357513427734,87.4241550580504
+train_mean_reward,Reward / Total reward (mean),169600.0,81.66941833496094,86.2732077134325
+train_mean_reward,Reward / Total reward (mean),170400.0,97.00067138671875,88.41870044808974
+train_mean_reward,Reward / Total reward (mean),171200.0,75.54553985595703,85.8440683296632
+train_mean_reward,Reward / Total reward (mean),172000.0,87.22660064697266,86.1205747931251
+train_mean_reward,Reward / Total reward (mean),172800.0,73.12010192871094,83.52048022024226
+train_mean_reward,Reward / Total reward (mean),173600.0,77.0533218383789,82.22704854386959
+train_mean_reward,Reward / Total reward (mean),174400.0,90.6983642578125,83.92131168665817
+train_mean_reward,Reward / Total reward (mean),175200.0,87.6827392578125,84.67359720088905
+train_mean_reward,Reward / Total reward (mean),176000.0,73.48988342285156,82.43685444528155
+train_mean_reward,Reward / Total reward (mean),176800.0,88.20659637451172,83.59080283112759
+train_mean_reward,Reward / Total reward (mean),177600.0,81.46500396728516,83.1656430583591
+train_mean_reward,Reward / Total reward (mean),178400.0,101.49638366699219,86.8317911800857
+train_mean_reward,Reward / Total reward (mean),179200.0,81.88551330566406,85.84253560520138
+train_mean_reward,Reward / Total reward (mean),180000.0,72.82218170166016,83.23846482449312
+train_mean_reward,Reward / Total reward (mean),180800.0,79.939453125,82.57866248459449
+train_mean_reward,Reward / Total reward (mean),181600.0,96.27765655517578,85.31846129871074
+train_mean_reward,Reward / Total reward (mean),182400.0,70.87335205078125,82.42943944912486
+train_mean_reward,Reward / Total reward (mean),183200.0,97.50847625732422,85.44524681076473
+train_mean_reward,Reward / Total reward (mean),184000.0,92.66434478759766,86.8890664061313
+train_mean_reward,Reward / Total reward (mean),184800.0,98.598876953125,89.23102851553006
+train_mean_reward,Reward / Total reward (mean),185600.0,97.42459106445312,90.86974102531467
+train_mean_reward,Reward / Total reward (mean),186400.0,89.20640563964844,90.53707394818142
+train_mean_reward,Reward / Total reward (mean),187200.0,100.78529357910156,92.58671787436545
+train_mean_reward,Reward / Total reward (mean),188000.0,88.90776062011719,91.8509264235158
+train_mean_reward,Reward / Total reward (mean),188800.0,94.44630432128906,92.37000200307045
+train_mean_reward,Reward / Total reward (mean),189600.0,102.10032653808594,94.31606691007354
+train_mean_reward,Reward / Total reward (mean),190400.0,89.7728500366211,93.40742353538306
+train_mean_reward,Reward / Total reward (mean),191200.0,100.79888916015625,94.88571666033769
+train_mean_reward,Reward / Total reward (mean),192000.0,58.8097038269043,87.67051409365101
+train_mean_reward,Reward / Total reward (mean),192800.0,78.24925994873047,85.7862632646669
+train_mean_reward,Reward / Total reward (mean),193600.0,85.55888366699219,85.74078734513195
+train_mean_reward,Reward / Total reward (mean),194400.0,90.66520690917969,86.7256712579415
+train_mean_reward,Reward / Total reward (mean),195200.0,64.90006256103516,82.36054951856023
+train_mean_reward,Reward / Total reward (mean),196000.0,59.611812591552734,77.81080213315875
+train_mean_reward,Reward / Total reward (mean),196800.0,80.91561126708984,78.43176395994496
+train_mean_reward,Reward / Total reward (mean),197600.0,99.22884368896484,82.59117990574893
+train_mean_reward,Reward / Total reward (mean),198400.0,91.4552001953125,84.36398396366164
+train_mean_reward,Reward / Total reward (mean),199200.0,93.95806884765625,86.28280094046056
+train_mean_reward,Reward / Total reward (mean),200000.0,64.06641387939453,81.83952352824735
+episode_termination_success,Episode_Termination/success,800.0,0.0,0.0
+episode_termination_success,Episode_Termination/success,1600.0,0.9166666865348816,0.1833333373069763
+episode_termination_success,Episode_Termination/success,2400.0,0.6315789222717285,0.27298245429992674
+episode_termination_success,Episode_Termination/success,3200.0,0.8888888955116272,0.39616374254226683
+episode_termination_success,Episode_Termination/success,4000.0,0.8888888955116272,0.49470877313613887
+episode_termination_success,Episode_Termination/success,4800.0,0.0,0.3957670185089111
+episode_termination_success,Episode_Termination/success,5600.0,0.7272727489471436,0.4620681645965576
+episode_termination_success,Episode_Termination/success,6400.0,1.0,0.5696545316772461
+episode_termination_success,Episode_Termination/success,7200.0,0.25,0.5057236253417969
+episode_termination_success,Episode_Termination/success,8000.0,0.3571428656578064,0.4760074734049988
+episode_termination_success,Episode_Termination/success,8800.0,0.5714285969734192,0.49509169811868287
+episode_termination_success,Episode_Termination/success,9600.0,0.8333333134651184,0.56274002118797
+episode_termination_success,Episode_Termination/success,11200.0,0.6153846383094788,0.5732689446122717
+episode_termination_success,Episode_Termination/success,12000.0,1.0,0.6586151556898174
+episode_termination_success,Episode_Termination/success,12800.0,0.4000000059604645,0.6068921257439468
+episode_termination_success,Episode_Termination/success,13600.0,0.875,0.6605137005951575
+episode_termination_success,Episode_Termination/success,14400.0,0.0,0.528410960476126
+episode_termination_success,Episode_Termination/success,15200.0,0.5,0.5227287683809008
+episode_termination_success,Episode_Termination/success,16000.0,0.7777777910232544,0.5737385729093715
+episode_termination_success,Episode_Termination/success,16800.0,0.875,0.6339908583274971
+episode_termination_success,Episode_Termination/success,17600.0,0.7857142686843872,0.6643355403988751
+episode_termination_success,Episode_Termination/success,18400.0,0.6470588445663452,0.6608802012323691
+episode_termination_success,Episode_Termination/success,19200.0,0.7272727489471436,0.674158710775324
+episode_termination_success,Episode_Termination/success,20000.0,0.7586206793785095,0.6910511044959611
+episode_termination_success,Episode_Termination/success,20800.0,0.987500011920929,0.7503408859809546
+episode_termination_success,Episode_Termination/success,21600.0,0.9714285731315613,0.7945584234110759
+episode_termination_success,Episode_Termination/success,22400.0,1.0,0.8356467387288606
+episode_termination_success,Episode_Termination/success,23200.0,1.0,0.8685173909830886
+episode_termination_success,Episode_Termination/success,24000.0,0.9729729890823364,0.8894085106029381
+episode_termination_success,Episode_Termination/success,24800.0,1.0,0.9115268084823505
+episode_termination_success,Episode_Termination/success,25600.0,1.0,0.9292214467858804
+episode_termination_success,Episode_Termination/success,26400.0,0.9655172228813171,0.9364806020049677
+episode_termination_success,Episode_Termination/success,27200.0,1.0,0.9491844816039742
+episode_termination_success,Episode_Termination/success,28000.0,0.9444444179534912,0.9482364688738776
+episode_termination_success,Episode_Termination/success,28800.0,1.0,0.958589175099102
+episode_termination_success,Episode_Termination/success,29600.0,0.9473684430122375,0.9563450286817292
+episode_termination_success,Episode_Termination/success,30400.0,1.0,0.9650760229453834
+episode_termination_success,Episode_Termination/success,31200.0,0.9259259104728699,0.9572460004508807
+episode_termination_success,Episode_Termination/success,32000.0,1.0,0.9657968003607046
+episode_termination_success,Episode_Termination/success,32800.0,1.0,0.9726374402885637
+episode_termination_success,Episode_Termination/success,33600.0,0.9629629850387573,0.9707025492386024
+episode_termination_success,Episode_Termination/success,34400.0,0.9772727489471436,0.9720165891803106
+episode_termination_success,Episode_Termination/success,35200.0,1.0,0.9776132713442485
+episode_termination_success,Episode_Termination/success,36000.0,1.0,0.9820906170753988
+episode_termination_success,Episode_Termination/success,36800.0,0.9642857313156128,0.9785296399234416
+episode_termination_success,Episode_Termination/success,37600.0,0.9642857313156128,0.9756808582018759
+episode_termination_success,Episode_Termination/success,38400.0,0.9411764740943909,0.9687799813803789
+episode_termination_success,Episode_Termination/success,39200.0,0.9655172228813171,0.9681274296805665
+episode_termination_success,Episode_Termination/success,40000.0,0.9545454382896423,0.9654110314023816
+episode_termination_success,Episode_Termination/success,40800.0,0.95652174949646,0.9636331750211973
+episode_termination_success,Episode_Termination/success,41600.0,0.9743589758872986,0.9657783351944176
+episode_termination_success,Episode_Termination/success,42400.0,1.0,0.9726226681555341
+episode_termination_success,Episode_Termination/success,43200.0,0.8823529481887817,0.9545687241621836
+episode_termination_success,Episode_Termination/success,44000.0,0.9285714030265808,0.949369259935063
+episode_termination_success,Episode_Termination/success,44800.0,0.9354838728904724,0.946592182526145
+episode_termination_success,Episode_Termination/success,45600.0,1.0,0.957273746020916
+episode_termination_success,Episode_Termination/success,46400.0,0.9655172228813171,0.9589224413929962
+episode_termination_success,Episode_Termination/success,47200.0,1.0,0.967137953114397
+episode_termination_success,Episode_Termination/success,48000.0,0.8947368264198303,0.9526577277754836
+episode_termination_success,Episode_Termination/success,48800.0,0.9714285731315613,0.9564118968466992
+episode_termination_success,Episode_Termination/success,49600.0,1.0,0.9651295174773594
+episode_termination_success,Episode_Termination/success,50400.0,0.9599999785423279,0.964103609690353
+episode_termination_success,Episode_Termination/success,51200.0,1.0,0.9712828877522824
+episode_termination_success,Episode_Termination/success,52000.0,0.9523809552192688,0.9675025012456797
+episode_termination_success,Episode_Termination/success,52800.0,0.9655172228813171,0.9671054455728072
+episode_termination_success,Episode_Termination/success,53600.0,1.0,0.9736843564582458
+episode_termination_success,Episode_Termination/success,54400.0,0.9729729890823364,0.973542082983064
+episode_termination_success,Episode_Termination/success,55200.0,1.0,0.9788336663864512
+episode_termination_success,Episode_Termination/success,56000.0,0.9583333134651184,0.9747335958021845
+episode_termination_success,Episode_Termination/success,56800.0,1.0,0.9797868766417477
+episode_termination_success,Episode_Termination/success,57600.0,0.931034505367279,0.970036402386854
+episode_termination_success,Episode_Termination/success,58400.0,1.0,0.9760291219094832
+episode_termination_success,Episode_Termination/success,59200.0,0.8181818127632141,0.9444596600802294
+episode_termination_success,Episode_Termination/success,60000.0,0.8333333134651184,0.9222343907572073
+episode_termination_success,Episode_Termination/success,60800.0,0.8181818127632141,0.9014238751584086
+episode_termination_success,Episode_Termination/success,61600.0,0.9285714030265808,0.906853380732043
+episode_termination_success,Episode_Termination/success,62400.0,0.9130434989929199,0.9080914043842184
+episode_termination_success,Episode_Termination/success,63200.0,1.0,0.9264731235073748
+episode_termination_success,Episode_Termination/success,64000.0,0.939393937587738,0.9290572863234474
+episode_termination_success,Episode_Termination/success,64800.0,1.0,0.943245829058758
+episode_termination_success,Episode_Termination/success,65600.0,0.9047619104385376,0.935549045334714
+episode_termination_success,Episode_Termination/success,66400.0,1.0,0.9484392362677712
+episode_termination_success,Episode_Termination/success,67200.0,0.8999999761581421,0.9387513842458454
+episode_termination_success,Episode_Termination/success,68000.0,0.9629629850387573,0.9435937044044278
+episode_termination_success,Episode_Termination/success,68800.0,1.0,0.9548749635235423
+episode_termination_success,Episode_Termination/success,69600.0,0.9615384340286255,0.956207657624559
+episode_termination_success,Episode_Termination/success,70400.0,0.9696969985961914,0.9589055258188854
+episode_termination_success,Episode_Termination/success,71200.0,1.0,0.9671244206551084
+episode_termination_success,Episode_Termination/success,72000.0,0.9750000238418579,0.9686995412924583
+episode_termination_success,Episode_Termination/success,72800.0,1.0,0.9749596330339666
+episode_termination_success,Episode_Termination/success,73600.0,0.9615384340286255,0.9722753932328984
+episode_termination_success,Episode_Termination/success,74400.0,0.9615384340286255,0.9701280013920438
+episode_termination_success,Episode_Termination/success,75200.0,0.9599999785423279,0.9681023968221005
+episode_termination_success,Episode_Termination/success,76000.0,0.9642857313156128,0.967339063720803
+episode_termination_success,Episode_Termination/success,76800.0,0.6666666865348816,0.9072045882836187
+episode_termination_success,Episode_Termination/success,77600.0,0.800000011920929,0.8857636730110808
+episode_termination_success,Episode_Termination/success,78400.0,0.9411764740943909,0.8968462332277428
+episode_termination_success,Episode_Termination/success,79200.0,0.9166666865348816,0.9008103238891706
+episode_termination_success,Episode_Termination/success,80000.0,0.875,0.8956482591113365
+episode_termination_success,Episode_Termination/success,80800.0,0.8333333134651184,0.8831852699820929
+episode_termination_success,Episode_Termination/success,81600.0,1.0,0.9065482159856744
+episode_termination_success,Episode_Termination/success,82400.0,0.8636363744735718,0.8979658476832538
+episode_termination_success,Episode_Termination/success,83200.0,1.0,0.9183726781466031
+episode_termination_success,Episode_Termination/success,84000.0,0.8823529481887817,0.9111687321550388
+episode_termination_success,Episode_Termination/success,84800.0,0.9473684430122375,0.9184086743264785
+episode_termination_success,Episode_Termination/success,85600.0,0.9166666865348816,0.9180602767681592
+episode_termination_success,Episode_Termination/success,86400.0,0.800000011920929,0.8944482237987131
+episode_termination_success,Episode_Termination/success,87200.0,0.8888888955116272,0.893336358141296
+episode_termination_success,Episode_Termination/success,88000.0,0.8999999761581421,0.8946690817446652
+episode_termination_success,Episode_Termination/success,88800.0,1.0,0.9157352653957321
+episode_termination_success,Episode_Termination/success,89600.0,0.7692307829856873,0.8864343689137232
+episode_termination_success,Episode_Termination/success,90400.0,0.9285714030265808,0.8948617757362948
+episode_termination_success,Episode_Termination/success,91200.0,0.8823529481887817,0.8923600102267921
+episode_termination_success,Episode_Termination/success,92000.0,1.0,0.9138880081814337
+episode_termination_success,Episode_Termination/success,92800.0,0.625,0.856110406545147
+episode_termination_success,Episode_Termination/success,93600.0,0.9333333373069763,0.8715549926975129
+episode_termination_success,Episode_Termination/success,94400.0,0.8823529481887817,0.8737145837957667
+episode_termination_success,Episode_Termination/success,95200.0,0.9375,0.8864716670366133
+episode_termination_success,Episode_Termination/success,96000.0,1.0,0.9091773336292907
+episode_termination_success,Episode_Termination/success,96800.0,0.9655172228813171,0.920445311479696
+episode_termination_success,Episode_Termination/success,97600.0,1.0,0.9363562491837568
+episode_termination_success,Episode_Termination/success,98400.0,0.9642857313156128,0.941942145610128
+episode_termination_success,Episode_Termination/success,99200.0,0.9615384340286255,0.9458614032938275
+episode_termination_success,Episode_Termination/success,100000.0,0.95652174949646,0.947993472534354
+episode_termination_success,Episode_Termination/success,100800.0,0.9583333134651184,0.9500614407205068
+episode_termination_success,Episode_Termination/success,101600.0,0.9629629850387573,0.9526417495841569
+episode_termination_success,Episode_Termination/success,102400.0,0.9677419066429138,0.9556617809959083
+episode_termination_success,Episode_Termination/success,103200.0,0.9583333134651184,0.9561960874897504
+episode_termination_success,Episode_Termination/success,104000.0,1.0,0.9649568699918003
+episode_termination_success,Episode_Termination/success,104800.0,0.9411764740943909,0.9602007908123185
+episode_termination_success,Episode_Termination/success,105600.0,0.9090909361839294,0.9499788198866407
+episode_termination_success,Episode_Termination/success,106400.0,0.6666666865348816,0.8933163932162889
+episode_termination_success,Episode_Termination/success,107200.0,0.8181818127632141,0.878289477125674
+episode_termination_success,Episode_Termination/success,108000.0,1.0,0.9026315817005391
+episode_termination_success,Episode_Termination/success,108800.0,0.8888888955116272,0.8998830444627568
+episode_termination_success,Episode_Termination/success,109600.0,1.0,0.9199064355702055
+episode_termination_success,Episode_Termination/success,110400.0,0.75,0.8859251484561643
+episode_termination_success,Episode_Termination/success,111200.0,0.9473684430122375,0.8982138073673789
+episode_termination_success,Episode_Termination/success,112000.0,0.9545454382896423,0.9094801335518317
+episode_termination_success,Episode_Termination/success,112800.0,0.9655172228813171,0.9206875514177287
+episode_termination_success,Episode_Termination/success,113600.0,0.9629629850387573,0.9291426381419344
+episode_termination_success,Episode_Termination/success,114400.0,0.9090909361839294,0.9251322977503335
+episode_termination_success,Episode_Termination/success,115200.0,1.0,0.9401058382002667
+episode_termination_success,Episode_Termination/success,116000.0,0.9130434989929199,0.9346933703587974
+episode_termination_success,Episode_Termination/success,116800.0,0.9599999785423279,0.9397546919955035
+episode_termination_success,Episode_Termination/success,117600.0,0.9714285731315613,0.946089468222715
+episode_termination_success,Episode_Termination/success,118400.0,1.0,0.956871574578172
+episode_termination_success,Episode_Termination/success,119200.0,1.0,0.9654972596625375
+episode_termination_success,Episode_Termination/success,120000.0,0.9545454382896423,0.9633068953879584
+episode_termination_success,Episode_Termination/success,120800.0,1.0,0.9706455163103668
+episode_termination_success,Episode_Termination/success,121600.0,0.9428571462631226,0.9650878423009179
+episode_termination_success,Episode_Termination/success,122400.0,1.0,0.9720702738407343
+episode_termination_success,Episode_Termination/success,123200.0,0.9642857313156128,0.9705133653357101
+episode_termination_success,Episode_Termination/success,124000.0,0.970588207244873,0.9705283337175427
+episode_termination_success,Episode_Termination/success,124800.0,1.0,0.9764226669740341
+episode_termination_success,Episode_Termination/success,125600.0,0.9444444179534912,0.9700270171699256
+episode_termination_success,Episode_Termination/success,126400.0,1.0,0.9760216137359404
+episode_termination_success,Episode_Termination/success,127200.0,1.0,0.9808172909887524
+episode_termination_success,Episode_Termination/success,128000.0,1.0,0.9846538327910019
+episode_termination_success,Episode_Termination/success,128800.0,0.9523809552192688,0.9781992572766554
+episode_termination_success,Episode_Termination/success,129600.0,0.9666666388511658,0.9758927335915575
+episode_termination_success,Episode_Termination/success,130400.0,0.9714285731315613,0.9749999014995583
+episode_termination_success,Episode_Termination/success,131200.0,0.9868420958518982,0.9773683403700263
+episode_termination_success,Episode_Termination/success,132000.0,1.0,0.981894672296021
+episode_termination_success,Episode_Termination/success,132800.0,0.9729729890823364,0.9801103356532841
+episode_termination_success,Episode_Termination/success,133600.0,1.0,0.9840882685226273
+episode_termination_success,Episode_Termination/success,134400.0,0.96875,0.9810206148181019
+episode_termination_success,Episode_Termination/success,135200.0,0.9756097793579102,0.9799384477260635
+episode_termination_success,Episode_Termination/success,136000.0,1.0,0.9839507581808509
+episode_termination_success,Episode_Termination/success,136800.0,1.0,0.9871606065446807
+episode_termination_success,Episode_Termination/success,137600.0,0.976190447807312,0.9849665747972071
+episode_termination_success,Episode_Termination/success,138400.0,1.0,0.9879732598377656
+episode_termination_success,Episode_Termination/success,139200.0,1.0,0.9903786078702125
+episode_termination_success,Episode_Termination/success,140000.0,0.9729729890823364,0.9868974841126373
+episode_termination_success,Episode_Termination/success,140800.0,1.0,0.9895179872901099
+episode_termination_success,Episode_Termination/success,141600.0,0.9777777791023254,0.987169945652553
+episode_termination_success,Episode_Termination/success,142400.0,1.0,0.9897359565220424
+episode_termination_success,Episode_Termination/success,143200.0,0.931034505367279,0.9779956662910898
+episode_termination_success,Episode_Termination/success,144000.0,1.0,0.9823965330328719
+episode_termination_success,Episode_Termination/success,144800.0,0.970588207244873,0.9800348678752722
+episode_termination_success,Episode_Termination/success,145600.0,0.9714285731315613,0.9783136089265301
+episode_termination_success,Episode_Termination/success,146400.0,0.9852941036224365,0.9797097078657113
+episode_termination_success,Episode_Termination/success,147200.0,1.0,0.983767766292569
+episode_termination_success,Episode_Termination/success,148000.0,1.0,0.9870142130340552
+episode_termination_success,Episode_Termination/success,148800.0,0.9200000166893005,0.9736113737651043
+episode_termination_success,Episode_Termination/success,149600.0,1.0,0.9788890990120834
+episode_termination_success,Episode_Termination/success,150400.0,0.9411764740943909,0.971346574028545
+episode_termination_success,Episode_Termination/success,151200.0,0.9411764740943909,0.9653125540417141
+episode_termination_success,Episode_Termination/success,152000.0,0.9285714030265808,0.9579643238386875
+episode_termination_success,Episode_Termination/success,152800.0,1.0,0.96637145907095
+episode_termination_success,Episode_Termination/success,153600.0,0.9166666865348816,0.9564305045637364
+episode_termination_success,Episode_Termination/success,154400.0,0.9130434989929199,0.9477531034495731
+episode_termination_success,Episode_Termination/success,155200.0,0.9375,0.9457024827596585
+episode_termination_success,Episode_Termination/success,156000.0,0.8823529481887817,0.9330325758454832
+episode_termination_success,Episode_Termination/success,156800.0,1.0,0.9464260606763866
+episode_termination_success,Episode_Termination/success,157600.0,0.75,0.9071408485411092
+episode_termination_success,Episode_Termination/success,158400.0,0.9411764740943909,0.9139479736517655
+episode_termination_success,Episode_Termination/success,159200.0,0.9696969985961914,0.9250977786406507
+episode_termination_success,Episode_Termination/success,160000.0,1.0,0.9400782229125205
+episode_termination_success,Episode_Termination/success,160800.0,0.9599999785423279,0.944062574038482
+episode_termination_success,Episode_Termination/success,161600.0,0.9696969985961914,0.9491894589500239
+episode_termination_success,Episode_Termination/success,162400.0,0.9642857313156128,0.9522087134231416
+episode_termination_success,Episode_Termination/success,163200.0,0.9629629850387573,0.9543595677462647
+episode_termination_success,Episode_Termination/success,164000.0,0.9259259104728699,0.9486728362915857
+episode_termination_success,Episode_Termination/success,164800.0,0.949999988079071,0.9489382666490829
+episode_termination_success,Episode_Termination/success,165600.0,0.9259259104728699,0.9443357954138403
+episode_termination_success,Episode_Termination/success,166400.0,0.949999988079071,0.9454686339468865
+episode_termination_success,Episode_Termination/success,167200.0,0.8461538553237915,0.9256056782222675
+episode_termination_success,Episode_Termination/success,168000.0,1.0,0.940484542577814
+episode_termination_success,Episode_Termination/success,168800.0,0.9545454382896423,0.9432967217201798
+episode_termination_success,Episode_Termination/success,169600.0,0.8965517282485962,0.933947723025863
+episode_termination_success,Episode_Termination/success,170400.0,0.8571428656578064,0.9185867515522517
+episode_termination_success,Episode_Termination/success,171200.0,0.800000011920929,0.8948694036259871
+episode_termination_success,Episode_Termination/success,172000.0,0.9047619104385376,0.8968479049884972
+episode_termination_success,Episode_Termination/success,172800.0,0.875,0.8924783239907977
+episode_termination_success,Episode_Termination/success,173600.0,0.8571428656578064,0.8854112323241995
+episode_termination_success,Episode_Termination/success,174400.0,0.9230769276618958,0.8929443713917388
+episode_termination_success,Episode_Termination/success,175200.0,0.8484848737716675,0.8840524718677245
+episode_termination_success,Episode_Termination/success,176000.0,0.800000011920929,0.8672419798783654
+episode_termination_success,Episode_Termination/success,176800.0,0.9523809552192688,0.884269774946546
+episode_termination_success,Episode_Termination/success,177600.0,0.8620689511299133,0.8798296101832195
+episode_termination_success,Episode_Termination/success,178400.0,1.0,0.9038636881465756
+episode_termination_success,Episode_Termination/success,179200.0,0.875,0.8980909505172604
+episode_termination_success,Episode_Termination/success,180000.0,0.9545454382896423,0.9093818480717368
+episode_termination_success,Episode_Termination/success,180800.0,0.9473684430122375,0.9169791670598371
+episode_termination_success,Episode_Termination/success,181600.0,0.8947368264198303,0.9125306989318357
+episode_termination_success,Episode_Termination/success,182400.0,0.8260869383811951,0.8952419468217075
+episode_termination_success,Episode_Termination/success,183200.0,0.8999999761581421,0.8961935526889945
+episode_termination_success,Episode_Termination/success,184000.0,0.9666666388511658,0.9102881699214287
+episode_termination_success,Episode_Termination/success,184800.0,0.8947368264198303,0.9071779012211091
+episode_termination_success,Episode_Termination/success,185600.0,0.9047619104385376,0.9066947030645948
+episode_termination_success,Episode_Termination/success,186400.0,0.9642857313156128,0.9182129087147983
+episode_termination_success,Episode_Termination/success,187200.0,0.9473684430122375,0.9240440155742862
+episode_termination_success,Episode_Termination/success,188000.0,0.8947368264198303,0.9181825777433951
+episode_termination_success,Episode_Termination/success,188800.0,0.9599999785423279,0.9265460579031817
+episode_termination_success,Episode_Termination/success,189600.0,1.0,0.9412368463225453
+episode_termination_success,Episode_Termination/success,190400.0,0.75,0.9029894770580362
+episode_termination_success,Episode_Termination/success,191200.0,1.0,0.922391581646429
+episode_termination_success,Episode_Termination/success,192000.0,0.8823529481887817,0.9143838549548995
+episode_termination_success,Episode_Termination/success,192800.0,0.9259259104728699,0.9166922660584935
+episode_termination_success,Episode_Termination/success,193600.0,0.9473684430122375,0.9228275014492424
+episode_termination_success,Episode_Termination/success,194400.0,0.8695651888847351,0.912175038936341
+episode_termination_success,Episode_Termination/success,195200.0,0.6666666865348816,0.8630733684560491
+episode_termination_success,Episode_Termination/success,196000.0,0.7272727489471436,0.8359132445542681
+episode_termination_success,Episode_Termination/success,196800.0,0.8666666746139526,0.842063930566205
+episode_termination_success,Episode_Termination/success,197600.0,0.7692307829856873,0.8274973010501014
+episode_termination_success,Episode_Termination/success,198400.0,1.0,0.8619978408400811
+episode_termination_success,Episode_Termination/success,199200.0,1.0,0.8895982726720649
+episode_termination_success,Episode_Termination/success,200000.0,0.8666666746139526,0.8850119530604424

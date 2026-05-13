@@ -28,6 +28,7 @@ DEFAULT_PPO_RUNS = (
 DEFAULT_DREAMER_RUNS = (
     Path("logs/r2dreamer/ur3_blood_pipe_vision_wrist_dreamer/seed_0_800k"),
     Path("logs/r2dreamer/ur3_blood_pipe_vision_wrist_dreamer/2026-05-06_09-29-04"),
+    Path("logs/r2dreamer/ur3_blood_pipe_vision_wrist_dreamer/2026-05-12_21-14-29_seed_0_600k"),
 )
 
 GROUP_LABELS = {
@@ -35,8 +36,8 @@ GROUP_LABELS = {
     "dreamer": "Vision Wrist Dreamer",
 }
 GROUP_COLORS = {
-    "ppo": "#009E73",
-    "dreamer": "#CC79A7",
+    "ppo": "#A6BC5E",
+    "dreamer": "#E7BD35",
 }
 
 
@@ -371,7 +372,7 @@ def _read_all_curves(args: argparse.Namespace) -> dict[str, dict[str, AggregateC
 
 def _style_axis(ax, spec: MetricSpec) -> None:
     ax.set_title(spec.title, pad=8, weight="normal")
-    ax.set_xlabel("真实环境交互步数", labelpad=6)
+    ax.set_xlabel("真实环境交互步数(transitions)", labelpad=6)
     ax.set_ylabel(spec.ylabel, labelpad=6)
     ax.xaxis.set_major_formatter(FuncFormatter(_format_steps))
     ax.grid(True, axis="both", color=GRID_COLOR, linestyle="--", linewidth=0.6, alpha=0.85)
