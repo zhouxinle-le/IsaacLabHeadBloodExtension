@@ -76,14 +76,14 @@ class AggregateCurve:
 METRICS = (
     MetricSpec(
         key="mean_episode_return",
-        title="平均回合回报",
-        ylabel="平均回合回报",
+        title="训练过程累积奖励曲线",
+        ylabel="累积奖励",
         ppo_tags=("Reward / Total reward (mean)",),
         dreamer_tags=("rollout/interval_episode_score_mean", "rollout/recent_episode_score_mean"),
     ),
     MetricSpec(
         key="success_rate",
-        title="成功率",
+        title="训练过程成功率曲线",
         ylabel="成功率",
         ppo_tags=("Episode_Termination/success",),
         dreamer_tags=("rollout/recent_termination_success",),

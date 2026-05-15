@@ -24,6 +24,7 @@ GRID_COLOR = "#E3E3E3"
 DEFAULT_PPO_RUNS = (
     Path("logs/rsl_rl/ur3_blood_pipe_state_direct/2026-05-08_21-19-37_seed_0_800k"),
     Path("logs/rsl_rl/ur3_blood_pipe_state_direct/2026-05-09_09-49-21_seed_1_800k"),
+    # Path("logs/r2dreamer/ur3_blood_pipe_state_dreamer/2026-05-14_02-01-49_seed_1_600k"),
 )
 DEFAULT_DREAMER_RUNS = (
     Path("logs/r2dreamer/ur3_blood_pipe_state_dreamer/seed_0_800k"),
@@ -75,14 +76,14 @@ class AggregateCurve:
 METRICS = (
     MetricSpec(
         key="mean_episode_return",
-        title="平均回合回报",
-        ylabel="平均回合回报",
+        title="训练过程累积奖励曲线",
+        ylabel="累积奖励",
         ppo_tags=("Train/mean_reward",),
         dreamer_tags=("rollout/interval_episode_score_mean", "rollout/recent_episode_score_mean"),
     ),
     MetricSpec(
         key="success_rate",
-        title="成功率",
+        title="训练过程成功率曲线",
         ylabel="成功率",
         ppo_tags=("Episode_Termination/success",),
         dreamer_tags=("rollout/recent_termination_success",),

@@ -23,6 +23,7 @@ GRID_COLOR = "#E3E3E3"
 DEFAULT_STATE_RUNS = (
     Path("logs/r2dreamer/ur3_blood_pipe_state_dreamer/seed_0_800k"),
     Path("logs/r2dreamer/ur3_blood_pipe_state_dreamer/seed_1_800k"),
+    Path("logs/r2dreamer/ur3_blood_pipe_state_dreamer/2026-05-14_02-01-49_seed_1_600k"),
 )
 DEFAULT_VISION_RUNS = (
     Path("logs/r2dreamer/ur3_blood_pipe_vision_wrist_dreamer/seed_0_800k"),
