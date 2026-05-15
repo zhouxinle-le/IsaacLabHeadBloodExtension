@@ -15,6 +15,7 @@ class IsaacStepOutput:
     obs: TensorObs
     aligned_next_obs: TensorObs
     reward: torch.Tensor
+    cost: torch.Tensor
     terminated: torch.Tensor
     truncated: torch.Tensor
     done: torch.Tensor
@@ -163,7 +164,13 @@ class IsaacR2DreamerEnvAdapter:
     def step(self, actions: torch.Tensor) -> IsaacStepOutput:
         obs_dict, reward, terminated, truncated, extras = self.env.step(actions.to(device=self.device))
         obs = self._extract_policy_obs(obs_dict)
+        cost = extras.get("safety_cost") if isinstance(extras, dict) else None
+        if cost is None:
+            cost = torch.zeros_like(reward)
+        else:
+            cost = cost.to(device=self.device)
         reward = reward.to(dtype=torch.float32).unsqueeze(-1)
+        cost = cost.to(dtype=torch.float32).unsqueeze(-1)
         terminated = terminated.to(dtype=torch.bool)
         truncated = truncated.to(dtype=torch.bool)
         done = terminated | truncated
@@ -176,6 +183,7 @@ class IsaacR2DreamerEnvAdapter:
             obs=obs,
             aligned_next_obs=aligned_next_obs,
             reward=reward,
+            cost=cost,
             terminated=terminated,
             truncated=truncated,
             done=done,

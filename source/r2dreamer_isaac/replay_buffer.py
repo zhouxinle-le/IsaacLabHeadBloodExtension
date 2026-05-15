@@ -57,6 +57,7 @@ class IsaacReplayBuffer:
         "next_obs",
         "action",
         "reward",
+        "cost",
         "is_first",
         "is_last",
         "is_terminal",
@@ -145,6 +146,7 @@ class IsaacReplayBuffer:
         observation_batches = {key: [] for key in observation_keys}
         action_batch = []
         reward_batch = []
+        cost_batch = []
         is_first_batch = []
         is_last_batch = []
         is_terminal_batch = []
@@ -162,6 +164,10 @@ class IsaacReplayBuffer:
                 observation_batches[key].append(episode.stack(key, start, self.batch_length))
             action_batch.append(episode.stack("action", start, self.batch_length))
             reward_batch.append(episode.stack("reward", start, self.batch_length))
+            if "cost" in episode.data:
+                cost_batch.append(episode.stack("cost", start, self.batch_length))
+            else:
+                cost_batch.append(torch.zeros_like(reward_batch[-1]))
             is_last_batch.append(episode.stack("is_last", start, self.batch_length))
             is_terminal_batch.append(episode.stack("is_terminal", start, self.batch_length))
             initial_stoch.append(episode.get("stoch", start))
@@ -183,12 +189,15 @@ class IsaacReplayBuffer:
             return tensor.to(device=self.device, non_blocking=True)
 
         reward = _to_device(torch.stack(reward_batch, dim=0)).to(dtype=torch.float32)
+        cost = _to_device(torch.stack(cost_batch, dim=0)).to(dtype=torch.float32)
         is_first = _to_device(torch.stack(is_first_batch, dim=0)).to(dtype=torch.bool)
         is_last = _to_device(torch.stack(is_last_batch, dim=0)).to(dtype=torch.bool)
         is_terminal = _to_device(torch.stack(is_terminal_batch, dim=0)).to(dtype=torch.bool)
 
         if reward.ndim == 2:
             reward = reward.unsqueeze(-1)
+        if cost.ndim == 2:
+            cost = cost.unsqueeze(-1)
         if is_last.ndim == 2:
             is_last = is_last.unsqueeze(-1)
         if is_terminal.ndim == 2:
@@ -197,6 +206,7 @@ class IsaacReplayBuffer:
         data = {
             "action": _to_device(torch.stack(action_batch, dim=0)).to(dtype=torch.float32),
             "reward": reward,
+            "cost": cost,
             "is_first": is_first,
             "is_last": is_last,
             "is_terminal": is_terminal,

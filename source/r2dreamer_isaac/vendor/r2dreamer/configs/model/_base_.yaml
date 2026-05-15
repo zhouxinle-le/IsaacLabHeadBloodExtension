@@ -23,15 +23,25 @@ loss_scales:
   infonce: 1.0
   recon: 1.0
   rew: 1.0
+  cost: 1.0
   con: 1.0
   dyn: 1.0
   rep: 0.1
   policy: 1.0
   value: 1.0
+  cost_value: 1.0
   repval: 0.3
+  cost_repval: 0.3
   swav: 1.0
   temp: 1.0
   norm: 1.0
+
+safety:
+  enabled: false
+  cost_limit: 0.02
+  lambda_init: 0.0
+  lambda_lr: 0.5
+  lambda_max: 30.0
 
 r2dreamer:
   lambd: 5e-4
@@ -131,6 +141,20 @@ reward:
   symlog_inputs: False
   name: 'reward'
 
+cost:
+  shape: [255,]
+  layers: 1
+  units: ${model.units}
+  act: ${model.act}
+  norm: ${model.norm}
+  dist:
+    name: 'symexp_twohot'
+    bin_num: 255
+  outscale: 0.0
+  device: ${device}
+  symlog_inputs: False
+  name: 'cost'
+
 cont:
   shape: [1,]
   layers: 1
@@ -179,3 +203,17 @@ critic:
   outscale: 0.0
   symlog_inputs: False
   name: 'value'
+
+cost_critic:
+  shape: [255,]
+  layers: 3
+  units: ${model.units}
+  act: ${model.act}
+  norm: ${model.norm}
+  device: ${device}
+  dist:
+    name: 'symexp_twohot'
+    bin_num: 255
+  outscale: 0.0
+  symlog_inputs: False
+  name: 'cost_value'

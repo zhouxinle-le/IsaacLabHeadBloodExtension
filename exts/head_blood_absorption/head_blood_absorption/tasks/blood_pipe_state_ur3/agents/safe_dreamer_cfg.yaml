@@ -1,0 +1,55 @@
+experiment_name: ur3_blood_pipe_state_safe_dreamer
+logdir: null
+seed: 0
+deterministic_run: false
+device: cuda:0
+model_preset: size12M
+
+buffer:
+  batch_size: 16
+  batch_length: 32
+  max_size: 500000
+  storage_device: cpu
+
+trainer:
+  total_steps: 510000
+  pretrain_updates: 0
+  eval_every: 10000
+  eval_episode_num: 4
+  train_ratio: 32
+  video_pred_log: false
+  params_hist_log: false
+  update_log_every: 5000
+  save_every: 100000
+  policy_save_every: 50000
+  action_repeat: 1
+  start_after_steps: 64
+
+env:
+  task: Isaac-Ur3-Blood-Pipe-State-Direct-v0
+  num_envs: 8
+  eval_num_envs: 2
+  cfg_overrides:
+    reward_include_safety_penalties: false
+  encoder:
+    mlp_keys: state
+    cnn_keys: "$^"
+  decoder:
+    mlp_keys: state
+    cnn_keys: "$^"
+
+model:
+  rep_loss: dreamer
+  compile: false
+  safety:
+    enabled: true
+    cost_limit: 0.05
+    lambda_init: 0.0
+    lambda_lr: 0.5
+    lambda_max: 30.0
+  encoder:
+    mlp_keys: state
+    cnn_keys: "$^"
+  decoder:
+    mlp_keys: state
+    cnn_keys: "$^"

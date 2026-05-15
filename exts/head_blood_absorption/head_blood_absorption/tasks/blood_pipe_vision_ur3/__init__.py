@@ -34,5 +34,6 @@ gym.register(
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg_wrist.yaml",
         "dreamer_cfg_entry_point": f"{agents.__name__}:dreamer_cfg_wrist.yaml",
         "r2dreamer_cfg_entry_point": f"{agents.__name__}:r2dreamer_cfg_wrist.yaml",
+        "safe_dreamer_cfg_entry_point": f"{agents.__name__}:safe_dreamer_cfg_wrist.yaml",
     },
 )

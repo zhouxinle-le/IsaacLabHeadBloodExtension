@@ -243,7 +243,7 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     suction_cone_range = 0.07
     suction_force_scale = 0.02
     suction_epsilon = 1e-6
-    inlet_radius = 0.004  # 0.008
+    inlet_radius = 0.005  # 0.008
     inlet_depth = 0.008
     use_body_quat_for_tip_dir = True
     outflow_speed = 0.02
@@ -258,8 +258,12 @@ class Ur3BloodPipeAbsorptionEnvCfg(DirectRLEnvCfg):
     contact_warning_force_threshold = 0.5
     reward_contact_warning_weight = 0.2
     severe_contact_force_threshold = 2.0
+    reward_include_safety_penalties = True
+    safety_contact_cost_weight = 1.0
+    safety_wall_cost_weight = 1.0
+    safety_collision_cost_weight = 10.0
 
-    blood_success_ratio = 0.96
+    blood_success_ratio = 0.95
 
 
 class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
@@ -300,9 +304,18 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "task_complete": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
         }
 
+    def _build_episode_safety_sums(self) -> dict[str, torch.Tensor]:
+        return {
+            "safety_cost": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
+            "contact_cost": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
+            "wall_cost": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
+            "collision_cost": torch.zeros(self.num_envs, dtype=torch.float32, device=self.device),
+        }
+
     def _init_episode_stats(self) -> None:
         self._step_count = torch.zeros(self.num_envs, dtype=torch.long, device=self.device)
         self._episode_reward_sums = self._build_episode_reward_sums()
+        self._episode_safety_sums = self._build_episode_safety_sums()
         self._episode_success = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._episode_severe_collision = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self._episode_time_out = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
@@ -1021,6 +1034,36 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._done_cache_dirty = False
         return terminated.clone(), truncated.clone()
 
+    def _compute_safety_terms(
+        self,
+        contact_force: torch.Tensor,
+        tip_clearance: torch.Tensor,
+    ) -> dict[str, torch.Tensor]:
+        warning_threshold = float(self.cfg.contact_warning_force_threshold)
+        severe_threshold = float(self.cfg.severe_contact_force_threshold)
+        warning_span = max(severe_threshold - warning_threshold, 1.0e-6)
+        contact_cost = float(self.cfg.safety_contact_cost_weight) * torch.clamp(
+            (contact_force - warning_threshold) / warning_span,
+            min=0.0,
+            max=1.0,
+        )
+        clearance_margin = max(float(self.cfg.pipe_tool_clearance_margin), 1.0e-6)
+        wall_cost = float(self.cfg.safety_wall_cost_weight) * torch.clamp(
+            (clearance_margin - tip_clearance) / clearance_margin,
+            min=0.0,
+            max=1.0,
+        )
+        collision_cost = float(self.cfg.safety_collision_cost_weight) * (
+            contact_force > severe_threshold
+        ).to(dtype=torch.float32)
+        safety_cost = contact_cost + wall_cost + collision_cost
+        return {
+            "contact_cost": contact_cost,
+            "wall_cost": wall_cost,
+            "collision_cost": collision_cost,
+            "safety_cost": safety_cost,
+        }
+
     def _compute_reward_terms(self, reward_inputs: ParticleRewardInputs) -> dict[str, torch.Tensor]:
         task_state = self._particle_state
 
@@ -1054,6 +1097,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             (clearance_margin - tip_clearance) / clearance_margin,
             min=0.0,
         )
+        safety_terms = self._compute_safety_terms(reward_inputs.contact_force, tip_clearance)
 
         time_penalty = torch.full(
             (self.num_envs,),
@@ -1064,15 +1108,18 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         absorption_complete = task_state.absorbed_count >= self._success_threshold
         safe_absorption_complete = absorption_complete & (~severe_contact)
         task_complete = self.cfg.reward_task_complete * safe_absorption_complete.float()
-        total_reward = (
+        task_reward = (
             task_complete
             + absorb_reward
             + centroid_progress_reward
             - action_penalty
-            - contact_warning_penalty
-            - wall_clearance_penalty
             - time_penalty
         ).float()
+        fixed_safety_penalty = contact_warning_penalty + wall_clearance_penalty
+        if bool(self.cfg.reward_include_safety_penalties):
+            total_reward = task_reward - fixed_safety_penalty
+        else:
+            total_reward = task_reward
 
         return {
             "absorb_reward": absorb_reward,
@@ -1082,6 +1129,9 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "wall_clearance_penalty": wall_clearance_penalty,
             "time_penalty": time_penalty,
             "task_complete": task_complete,
+            "task_reward": task_reward,
+            "fixed_safety_penalty": fixed_safety_penalty,
+            **safety_terms,
             "total_reward": total_reward,
         }
 
@@ -1107,6 +1157,10 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._episode_reward_sums["wall_clearance_penalty"] -= reward_terms["wall_clearance_penalty"]
         self._episode_reward_sums["time_penalty"] -= reward_terms["time_penalty"]
         self._episode_reward_sums["task_complete"] += reward_terms["task_complete"]
+        self._episode_safety_sums["safety_cost"] += reward_terms["safety_cost"]
+        self._episode_safety_sums["contact_cost"] += reward_terms["contact_cost"]
+        self._episode_safety_sums["wall_cost"] += reward_terms["wall_cost"]
+        self._episode_safety_sums["collision_cost"] += reward_terms["collision_cost"]
 
         tip_pos_w, tip_dir_w = self._compute_tip_pose_and_direction_w()
         _, _, tip_clearance = self._compute_pipe_clearance(tip_pos_w)
@@ -1116,6 +1170,13 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         absorption_complete = task_state.absorbed_count >= self._success_threshold
         severe_contact = ur3_contact_force > float(self.cfg.severe_contact_force_threshold)
         success = absorption_complete & (~severe_contact)
+        wall_violation = reward_terms["wall_cost"] > 0.0
+        self.extras["safety_cost"] = reward_terms["safety_cost"].clone()
+        self.extras["safety_terms"] = {
+            "contact_cost": reward_terms["contact_cost"].clone(),
+            "wall_cost": reward_terms["wall_cost"].clone(),
+            "collision_cost": reward_terms["collision_cost"].clone(),
+        }
         self.extras["log"] = {
             "Metrics/absorbed_count": task_state.absorbed_count.mean(),
             "Metrics/absorbed_delta": task_state.absorbed_delta.mean(),
@@ -1139,6 +1200,11 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "Metrics/tip_pipe_axis_alignment": tip_pipe_axis_alignment.mean(),
             "Metrics/absorption_complete_rate": absorption_complete.float().mean(),
             "Metrics/success_rate": success.float().mean(),
+            "Safety/cost_mean": reward_terms["safety_cost"].mean(),
+            "Safety/contact_cost_mean": reward_terms["contact_cost"].mean(),
+            "Safety/wall_cost_mean": reward_terms["wall_cost"].mean(),
+            "Safety/collision_cost_mean": reward_terms["collision_cost"].mean(),
+            "Safety/wall_violation_rate": wall_violation.float().mean(),
         }
 
         self._reward_cache[:] = reward_terms["total_reward"]
@@ -1156,6 +1222,9 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         reward_logs = {}
         for key, values in self._episode_reward_sums.items():
             reward_logs[f"Episode_Reward/{key}"] = (values[finished_env_ids] / actual_steps).mean()
+        safety_logs = {}
+        for key, values in self._episode_safety_sums.items():
+            safety_logs[f"Episode_Safety/{key}"] = (values[finished_env_ids] / actual_steps).mean()
 
         success_mask = self._episode_success[finished_env_ids]
         severe_collision_mask = (
@@ -1173,6 +1242,7 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
             "Episode_Termination/time_out": time_out_mask.float().mean(),
         }
         self.extras["log"].update(reward_logs)
+        self.extras["log"].update(safety_logs)
         self.extras["log"].update(termination_logs)
 
     def _reset_idx(self, env_ids: torch.Tensor | None):
@@ -1211,6 +1281,8 @@ class Ur3BloodPipeAbsorptionEnv(DirectRLEnv):
         self._suction_controller.reset(env_ids.tolist())
         self._step_count[env_ids] = 0
         for values in self._episode_reward_sums.values():
+            values[env_ids] = 0.0
+        for values in self._episode_safety_sums.values():
             values[env_ids] = 0.0
         self._episode_success[env_ids] = False
         self._episode_severe_collision[env_ids] = False

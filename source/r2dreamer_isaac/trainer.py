@@ -60,6 +60,7 @@ class IsaacOnlineTrainer:
         self.latest_env_metrics: dict[str, Any] = {}
         self._recent_episode_scores: deque[float] = deque(maxlen=self._RECENT_EPISODE_WINDOW)
         self._recent_episode_lengths: deque[float] = deque(maxlen=self._RECENT_EPISODE_WINDOW)
+        self._recent_safety_costs: deque[float] = deque(maxlen=self._RECENT_EPISODE_WINDOW)
         self._interval_episode_scores: list[float] = []
         self._interval_episode_lengths: list[float] = []
         self._recent_episode_metrics: dict[str, deque[float]] = defaultdict(
@@ -72,6 +73,7 @@ class IsaacOnlineTrainer:
             obs=obs_to_device(step_out.obs, device),
             aligned_next_obs=obs_to_device(step_out.aligned_next_obs, device),
             reward=step_out.reward.to(device),
+            cost=step_out.cost.to(device),
             terminated=step_out.terminated.to(device),
             truncated=step_out.truncated.to(device),
             done=step_out.done.to(device),
@@ -215,6 +217,7 @@ class IsaacOnlineTrainer:
         transition = {
             "action": action.detach(),
             "reward": step_out.reward.detach(),
+            "cost": step_out.cost.detach(),
             "is_first": current_is_first.detach(),
             "is_last": step_out.done.detach(),
             "is_terminal": step_out.terminated.detach(),
@@ -359,6 +362,7 @@ class IsaacOnlineTrainer:
                 step_out=step_out,
             )
             self.replay_buffer.add_transition(transition)
+            self._recent_safety_costs.append(float(step_out.cost.detach().float().mean().item()))
 
             runtime["global_step"] += self.train_env.num_envs * self.action_repeat
             runtime["episode_returns"] += step_out.reward[:, 0]
@@ -376,14 +380,26 @@ class IsaacOnlineTrainer:
                 else:
                     update_num = self._updates_needed(int(runtime["global_step"]))
                 for _ in range(update_num):
+                    safe_metrics = {}
+                    if hasattr(agent, "update_safety_lambda"):
+                        observed_cost = (
+                            sum(self._recent_safety_costs) / len(self._recent_safety_costs)
+                            if self._recent_safety_costs
+                            else 0.0
+                        )
+                        safe_metrics = agent.update_safety_lambda(observed_cost)
                     train_metrics = agent.update(self.replay_buffer)
+                    train_metrics.update(safe_metrics)
                 runtime["update_count"] += update_num
 
                 if train_metrics and self._should_log(int(runtime["global_step"])):
                     for name, value in train_metrics.items():
                         if isinstance(value, torch.Tensor):
                             value = value.detach().item()
-                        self.logger.scalar(f"train/{name}", value)
+                        if str(name).startswith("safe_dreamer/"):
+                            self.logger.scalar(name, value)
+                        else:
+                            self.logger.scalar(f"train/{name}", value)
                     self.logger.scalar("train/opt/updates", runtime["update_count"])
                     self._log_env_metrics(self.latest_env_metrics)
                     self._log_interval_episode_metrics()

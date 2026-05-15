@@ -28,6 +28,17 @@ class Dreamer(nn.Module):
         self.return_ema = networks.ReturnEMA(device=self.device)
         self.act_dim = act_space.n if hasattr(act_space, "n") else sum(act_space.shape)
         self.rep_loss = str(config.rep_loss)
+        safety_cfg = getattr(config, "safety", {})
+        self.safety_enabled = bool(getattr(safety_cfg, "enabled", False))
+        self.safety_cost_limit = float(getattr(safety_cfg, "cost_limit", 0.0))
+        self.safety_lambda_lr = float(getattr(safety_cfg, "lambda_lr", 0.0))
+        self.safety_lambda_max = float(getattr(safety_cfg, "lambda_max", 0.0))
+        lambda_init = float(getattr(safety_cfg, "lambda_init", 0.0))
+        if self.safety_enabled:
+            self.cost_return_ema = networks.ReturnEMA(device=self.device)
+            self.register_buffer("cost_lambda", torch.tensor(lambda_init, dtype=torch.float32, device=self.device))
+        else:
+            self.cost_lambda = torch.tensor(0.0, dtype=torch.float32, device=self.device)
 
         # World model components
         shapes = {k: tuple(v.shape) for k, v in obs_space.spaces.items()}
@@ -40,6 +51,8 @@ class Dreamer(nn.Module):
         )
         self.reward = networks.MLPHead(config.reward, self.rssm.feat_size)
         self.cont = networks.MLPHead(config.cont, self.rssm.feat_size)
+        if self.safety_enabled:
+            self.cost = networks.MLPHead(config.cost, self.rssm.feat_size)
 
         config.actor.shape = (act_space.n,) if hasattr(act_space, "n") else tuple(map(int, act_space.shape))
         self.act_discrete = False
@@ -55,11 +68,17 @@ class Dreamer(nn.Module):
         # Actor-critic components
         self.actor = networks.MLPHead(config.actor, self.rssm.feat_size)
         self.value = networks.MLPHead(config.critic, self.rssm.feat_size)
+        if self.safety_enabled:
+            self.cost_value = networks.MLPHead(config.cost_critic, self.rssm.feat_size)
         self.slow_target_update = int(config.slow_target_update)
         self.slow_target_fraction = float(config.slow_target_fraction)
         self._slow_value = copy.deepcopy(self.value)
         for param in self._slow_value.parameters():
             param.requires_grad = False
+        if self.safety_enabled:
+            self._slow_cost_value = copy.deepcopy(self.cost_value)
+            for param in self._slow_cost_value.parameters():
+                param.requires_grad = False
         self._slow_value_updates = 0
 
         self._loss_scales = dict(config.loss_scales)
@@ -73,6 +92,8 @@ class Dreamer(nn.Module):
             "cont": self.cont,
             "encoder": self.encoder,
         }
+        if self.safety_enabled:
+            modules.update({"cost": self.cost, "cost_value": self.cost_value})
 
         if self.rep_loss == "dreamer":
             self.decoder = networks.MultiDecoder(
@@ -168,13 +189,37 @@ class Dreamer(nn.Module):
                 mix = self.slow_target_fraction
                 for v, s in zip(self.value.parameters(), self._slow_value.parameters()):
                     s.data.copy_(mix * v.data + (1 - mix) * s.data)
+                if self.safety_enabled:
+                    for v, s in zip(self.cost_value.parameters(), self._slow_cost_value.parameters()):
+                        s.data.copy_(mix * v.data + (1 - mix) * s.data)
         self._slow_value_updates += 1
 
     def train(self, mode=True):
         super().train(mode)
         # slow_value should be always eval mode
         self._slow_value.train(False)
+        if self.safety_enabled:
+            self._slow_cost_value.train(False)
         return self
+
+    @torch.no_grad()
+    def update_safety_lambda(self, observed_cost_mean: float) -> dict[str, float]:
+        if not self.safety_enabled:
+            return {}
+        observed = float(observed_cost_mean)
+        error = observed - self.safety_cost_limit
+        updated = torch.clamp(
+            self.cost_lambda + self.safety_lambda_lr * error,
+            min=0.0,
+            max=self.safety_lambda_max,
+        )
+        self.cost_lambda.copy_(updated)
+        return {
+            "safe_dreamer/lambda": float(self.cost_lambda.item()),
+            "safe_dreamer/cost_limit": self.safety_cost_limit,
+            "safe_dreamer/observed_cost_mean": observed,
+            "safe_dreamer/lambda_error": error,
+        }
 
     def clone_and_freeze(self):
         # NOTE: "requires_grad" affects whether a parameter is updated
@@ -211,6 +256,15 @@ class Dreamer(nn.Module):
             param_new.data = param_orig.data
             param_new.requires_grad_(False)
 
+        if self.safety_enabled:
+            self._frozen_cost = copy.deepcopy(self.cost)
+            for (name_orig, param_orig), (name_new, param_new) in zip(
+                self.cost.named_parameters(), self._frozen_cost.named_parameters()
+            ):
+                assert name_orig == name_new
+                param_new.data = param_orig.data
+                param_new.requires_grad_(False)
+
         self._frozen_actor = copy.deepcopy(self.actor)
         for (name_orig, param_orig), (name_new, param_new) in zip(
             self.actor.named_parameters(), self._frozen_actor.named_parameters()
@@ -227,6 +281,15 @@ class Dreamer(nn.Module):
             param_new.data = param_orig.data
             param_new.requires_grad_(False)
 
+        if self.safety_enabled:
+            self._frozen_cost_value = copy.deepcopy(self.cost_value)
+            for (name_orig, param_orig), (name_new, param_new) in zip(
+                self.cost_value.named_parameters(), self._frozen_cost_value.named_parameters()
+            ):
+                assert name_orig == name_new
+                param_new.data = param_orig.data
+                param_new.requires_grad_(False)
+
         self._frozen_slow_value = copy.deepcopy(self._slow_value)
         for (name_orig, param_orig), (name_new, param_new) in zip(
             self._slow_value.named_parameters(), self._frozen_slow_value.named_parameters()
@@ -234,6 +297,15 @@ class Dreamer(nn.Module):
             assert name_orig == name_new
             param_new.data = param_orig.data
             param_new.requires_grad_(False)
+
+        if self.safety_enabled:
+            self._frozen_slow_cost_value = copy.deepcopy(self._slow_cost_value)
+            for (name_orig, param_orig), (name_new, param_new) in zip(
+                self._slow_cost_value.named_parameters(), self._frozen_slow_cost_value.named_parameters()
+            ):
+                assert name_orig == name_new
+                param_new.data = param_orig.data
+                param_new.requires_grad_(False)
 
     def to(self, *args, **kwargs):
         super().to(*args, **kwargs)
@@ -429,6 +501,9 @@ class Dreamer(nn.Module):
 
         # reward and continue
         losses["rew"] = torch.mean(-self.reward(feat).log_prob(to_f32(data["reward"])))
+        if self.safety_enabled:
+            cost_target = to_f32(data.get("cost", torch.zeros_like(data["reward"])))
+            losses["cost"] = torch.mean(-self.cost(feat).log_prob(cost_target))
         cont = 1.0 - to_f32(data["is_terminal"])
         losses["con"] = torch.mean(-self.cont(feat).log_prob(cont))
         # log
@@ -452,6 +527,10 @@ class Dreamer(nn.Module):
         # (B*T, T_imag, 1)
         imag_value = self._frozen_value(imag_feat).mode()
         imag_slow_value = self._frozen_slow_value(imag_feat).mode()
+        if self.safety_enabled:
+            imag_cost = self._frozen_cost(imag_feat).mode()
+            imag_cost_value = self._frozen_cost_value(imag_feat).mode()
+            imag_slow_cost_value = self._frozen_slow_cost_value(imag_feat).mode()
         disc = 1 - 1 / self.horizon
         # (B*T, T_imag, 1)
         weight = torch.cumprod(imag_cont * disc, dim=1)
@@ -463,12 +542,22 @@ class Dreamer(nn.Module):
         ret_offset, ret_scale = self.return_ema(ret)
         # (B*T, T_imag-1, 1)
         adv = (ret - imag_value[:, :-1]) / ret_scale
+        safe_adv = adv
+        if self.safety_enabled:
+            cost_ret = self._lambda_return(
+                last, term, imag_cost, imag_cost_value, imag_cost_value, disc, self.lamb
+            )
+            _, cost_ret_scale = self.cost_return_ema(cost_ret)
+            cost_adv = (cost_ret - imag_cost_value[:, :-1]) / cost_ret_scale
+            safe_adv = adv - self.cost_lambda.detach() * cost_adv
 
         policy = self.actor(imag_feat)
         # (B*T, T_imag-1, 1)
         logpi = policy.log_prob(imag_action)[:, :-1].unsqueeze(-1)
         entropy = policy.entropy()[:, :-1].unsqueeze(-1)
-        losses["policy"] = torch.mean(weight[:, :-1].detach() * -(logpi * adv.detach() + self.act_entropy * entropy))
+        losses["policy"] = torch.mean(
+            weight[:, :-1].detach() * -(logpi * safe_adv.detach() + self.act_entropy * entropy)
+        )
 
         imag_value_dist = self.value(imag_feat)
         # (B*T, T_imag, 1)
@@ -479,6 +568,16 @@ class Dreamer(nn.Module):
                 :, :-1
             ].unsqueeze(-1)
         )
+        if self.safety_enabled:
+            imag_cost_value_dist = self.cost_value(imag_feat)
+            cost_tar_padded = torch.cat([cost_ret, 0 * cost_ret[:, -1:]], 1)
+            losses["cost_value"] = torch.mean(
+                weight[:, :-1].detach()
+                * (
+                    -imag_cost_value_dist.log_prob(cost_tar_padded.detach())
+                    - imag_cost_value_dist.log_prob(imag_slow_cost_value.detach())
+                )[:, :-1].unsqueeze(-1)
+            )
         # log
         ret_normed = (ret - ret_offset) / ret_scale
         metrics["ret"] = torch.mean(ret_normed)
@@ -493,6 +592,12 @@ class Dreamer(nn.Module):
         metrics["slowval"] = torch.mean(imag_slow_value)
         metrics["weight"] = torch.mean(weight)
         metrics["action_entropy"] = torch.mean(entropy)
+        if self.safety_enabled:
+            metrics["imag_cost"] = torch.mean(imag_cost)
+            metrics["imag_cost_value"] = torch.mean(imag_cost_value)
+            metrics["cost_adv"] = torch.mean(cost_adv)
+            metrics["safe_adv"] = torch.mean(safe_adv)
+            metrics["safe_dreamer/lambda"] = self.cost_lambda.detach()
         metrics.update(tools.tensorstats(imag_action, "action"))
 
         # === Replay-based value learning (keep gradients through world model) ===
@@ -501,6 +606,7 @@ class Dreamer(nn.Module):
             to_f32(data["is_terminal"]),
             to_f32(data["reward"]),
         )
+        replay_cost = to_f32(data.get("cost", torch.zeros_like(data["reward"])))
         feat = self.rssm.get_feat(post_stoch, post_deter)
         boot = ret[:, 0].reshape(B, T, 1)
         value = self._frozen_value(feat).mode()
@@ -518,10 +624,30 @@ class Dreamer(nn.Module):
                 -1
             )
         )
+        if self.safety_enabled:
+            cost_boot = cost_ret[:, 0].reshape(B, T, 1)
+            replay_cost_value = self._frozen_cost_value(feat).mode()
+            replay_slow_cost_value = self._frozen_slow_cost_value(feat).mode()
+            replay_cost_ret = self._lambda_return(
+                last, term, replay_cost, replay_cost_value, cost_boot, disc, self.lamb
+            )
+            replay_cost_ret_padded = torch.cat([replay_cost_ret, 0 * replay_cost_ret[:, -1:]], 1)
+            replay_cost_value_dist = self.cost_value(feat)
+            losses["cost_repval"] = torch.mean(
+                weight[:, :-1]
+                * (
+                    -replay_cost_value_dist.log_prob(replay_cost_ret_padded.detach())
+                    - replay_cost_value_dist.log_prob(replay_slow_cost_value.detach())
+                )[:, :-1].unsqueeze(-1)
+            )
         # log
         metrics.update(tools.tensorstats(ret, "ret_replay"))
         metrics.update(tools.tensorstats(value, "value_replay"))
         metrics.update(tools.tensorstats(slow_value, "slow_value_replay"))
+        if self.safety_enabled:
+            metrics.update(tools.tensorstats(replay_cost_ret, "cost_ret_replay"))
+            metrics.update(tools.tensorstats(replay_cost_value, "cost_value_replay"))
+            metrics.update(tools.tensorstats(replay_slow_cost_value, "slow_cost_value_replay"))
 
         total_loss = sum([v * self._loss_scales[k] for k, v in losses.items()])
         self._scaler.scale(total_loss).backward()

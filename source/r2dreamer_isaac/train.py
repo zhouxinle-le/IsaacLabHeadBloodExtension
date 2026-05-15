@@ -94,6 +94,15 @@ def _dump_config(logdir: pathlib.Path, config, env_cfg) -> None:
         handle.write(str(env_cfg))
 
 
+def _apply_env_cfg_overrides(env_cfg, overrides) -> None:
+    if not overrides:
+        return
+    for name, value in overrides.items():
+        if not hasattr(env_cfg, name):
+            raise AttributeError(f"Environment config has no field '{name}' for env.cfg_overrides.")
+        setattr(env_cfg, name, value)
+
+
 def main() -> None:
     task_cfg = load_cfg_from_registry(args_cli.task, args_cli.cfg_entry_point)
     env_device = args_cli.env_device or args_cli.device
@@ -129,6 +138,7 @@ def main() -> None:
         num_envs=int(config.env.num_envs),
         use_fabric=not args_cli.disable_fabric,
     )
+    _apply_env_cfg_overrides(train_env_cfg, getattr(config.env, "cfg_overrides", {}))
     _dump_config(logdir, config, train_env_cfg)
 
     train_env = gym.make(args_cli.task, cfg=train_env_cfg)
