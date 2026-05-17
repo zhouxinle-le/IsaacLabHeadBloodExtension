@@ -1,0 +1,117 @@
+seed: 42
+
+env:
+  cfg_overrides:
+    reward_include_safety_penalties: false
+
+safety:
+  enabled: true
+  cost_limit: 0.02
+  lambda_init: 0.0
+  lambda_lr: 0.5
+  lambda_max: 30.0
+  cost_value_loss_coef: 1.0
+  normalize_cost_advantage: true
+
+models:
+  separate: True
+  policy:
+    class: GaussianMixin
+    clip_actions: False
+    clip_log_std: True
+    min_log_std: -20.0
+    max_log_std: 2.0
+    initial_log_std: -0.5
+    network:
+      - name: features_extractor
+        input: STATES["camera"]
+        layers:
+          - conv2d: {out_channels: 32, kernel_size: 8, stride: 4, padding: 0}
+          - conv2d: {out_channels: 64, kernel_size: 4, stride: 2, padding: 0}
+          - conv2d: {out_channels: 64, kernel_size: 3, stride: 1, padding: 0}
+          - flatten
+        activations: relu
+      - name: net
+        input: concatenate([features_extractor, STATES["position"]])
+        layers: [512, 256, 128]
+        activations: elu
+    output: ACTIONS
+  value:
+    class: DeterministicMixin
+    clip_actions: False
+    network:
+      - name: features_extractor
+        input: STATES["camera"]
+        layers:
+          - conv2d: {out_channels: 32, kernel_size: 8, stride: 4, padding: 0}
+          - conv2d: {out_channels: 64, kernel_size: 4, stride: 2, padding: 0}
+          - conv2d: {out_channels: 64, kernel_size: 3, stride: 1, padding: 0}
+          - flatten
+        activations: relu
+      - name: net
+        input: concatenate([features_extractor, STATES["position"]])
+        layers: [512, 256, 128]
+        activations: elu
+    output: ONE
+  cost_value:
+    class: DeterministicMixin
+    clip_actions: False
+    network:
+      - name: features_extractor
+        input: STATES["camera"]
+        layers:
+          - conv2d: {out_channels: 32, kernel_size: 8, stride: 4, padding: 0}
+          - conv2d: {out_channels: 64, kernel_size: 4, stride: 2, padding: 0}
+          - conv2d: {out_channels: 64, kernel_size: 3, stride: 1, padding: 0}
+          - flatten
+        activations: relu
+      - name: net
+        input: concatenate([features_extractor, STATES["position"]])
+        layers: [512, 256, 128]
+        activations: elu
+    output: ONE
+
+memory:
+  class: RandomMemory
+  memory_size: -1
+
+agent:
+  class: SafePPO
+  rollouts: 128
+  learning_epochs: 4
+  mini_batches: 4
+  discount_factor: 0.995
+  lambda: 0.95
+  learning_rate: 1.0e-04
+  learning_rate_scheduler: KLAdaptiveLR
+  learning_rate_scheduler_kwargs:
+    kl_threshold: 0.008
+    min_lr: 1.0e-05
+    max_lr: 2.0e-04
+    lr_factor: 1.1
+  state_preprocessor: null
+  state_preprocessor_kwargs: null
+  value_preprocessor: RunningStandardScaler
+  value_preprocessor_kwargs: null
+  random_timesteps: 0
+  learning_starts: 0
+  grad_norm_clip: 1.0
+  ratio_clip: 0.2
+  value_clip: 0.2
+  clip_predicted_values: True
+  entropy_loss_scale: 0.0
+  value_loss_scale: 1.0
+  kl_threshold: 0.0
+  rewards_shaper_scale: 1.0
+  time_limit_bootstrap: False
+  experiment:
+    directory: "ur3_blood_pipe_vision_direct_wrist_safe_ppo_lagrangian"
+    experiment_name: ""
+    write_interval: 800
+    checkpoint_interval: 3200
+
+trainer:
+  class: SequentialTrainer
+  timesteps: 800000
+  environment_info: log
+

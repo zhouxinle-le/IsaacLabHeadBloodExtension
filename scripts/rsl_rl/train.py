@@ -28,6 +28,12 @@ parser.add_argument("--num_envs", type=int, default=None, help="Number of enviro
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--seed", type=int, default=None, help="Seed used for the environment")
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
+parser.add_argument(
+    "--cfg_entry_point",
+    type=str,
+    default="rsl_rl_cfg_entry_point",
+    help="Gym registry key used to load the RSL-RL agent configuration.",
+)
 # append RSL-RL cli arguments
 cli_args.add_rsl_rl_args(parser)
 # append AppLauncher cli args
@@ -51,8 +57,15 @@ import gymnasium as gym
 import os
 import torch
 from datetime import datetime
+from pathlib import Path
 
 from rsl_rl.runners import OnPolicyRunner
+
+SOURCE_ROOT = Path(__file__).resolve().parents[2] / "source"
+if str(SOURCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SOURCE_ROOT))
+
+from safe_ppo_lagrangian.rsl import SafeOnPolicyRunner
 
 from omni.isaac.lab.envs import (
     DirectMARLEnv,
@@ -76,7 +89,28 @@ torch.backends.cudnn.deterministic = False
 torch.backends.cudnn.benchmark = False
 
 
-@hydra_task_config(args_cli.task, "rsl_rl_cfg_entry_point")
+def _agent_cfg_get(agent_cfg, key: str, default=None):
+    if isinstance(agent_cfg, dict):
+        return agent_cfg.get(key, default)
+    return getattr(agent_cfg, key, default)
+
+
+def _apply_env_cfg_overrides(env_cfg, agent_cfg) -> None:
+    env_block = _agent_cfg_get(agent_cfg, "env", {}) or {}
+    cfg_overrides = env_block.get("cfg_overrides", {}) if isinstance(env_block, dict) else {}
+    for key, value in cfg_overrides.items():
+        if not hasattr(env_cfg, key):
+            raise AttributeError(f"Environment config has no field '{key}' for cfg_overrides")
+        print(f"[INFO] Applying env cfg override: {key}={value}")
+        setattr(env_cfg, key, value)
+
+
+def _use_safe_runner(agent_cfg_dict: dict) -> bool:
+    safety = agent_cfg_dict.get("algorithm", {}).get("safety", {})
+    return bool(safety.get("enabled", False)) or args_cli.cfg_entry_point == "safe_rsl_rl_cfg_entry_point"
+
+
+@hydra_task_config(args_cli.task, args_cli.cfg_entry_point)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: RslRlOnPolicyRunnerCfg):
     """Train with RSL-RL agent."""
     # override configurations with non-hydra CLI arguments
@@ -91,6 +125,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env_cfg.seed = agent_cfg.seed
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
     env_cfg.sim.use_fabric = not args_cli.disable_fabric
+    _apply_env_cfg_overrides(env_cfg, agent_cfg)
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "rsl_rl", agent_cfg.experiment_name)
@@ -124,7 +159,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     env = RslRlVecEnvWrapper(env)
 
     # create runner from rsl-rl
-    runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+    runner_cfg = agent_cfg.to_dict()
+    runner_cls = SafeOnPolicyRunner if _use_safe_runner(runner_cfg) else OnPolicyRunner
+    runner = runner_cls(env, runner_cfg, log_dir=log_dir, device=agent_cfg.device)
     # write git state to logs
     runner.add_git_repo_to_log(__file__)
     # save resume path before creating a new log_dir

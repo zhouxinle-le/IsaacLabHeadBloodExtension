@@ -30,6 +30,12 @@ parser.add_argument(
 )
 parser.add_argument("--max_iterations", type=int, default=None, help="RL Policy training iterations.")
 parser.add_argument(
+    "--cfg_entry_point",
+    type=str,
+    default=None,
+    help="Gym registry key used to load the skrl agent configuration.",
+)
+parser.add_argument(
     "--ml_framework",
     type=str,
     default="torch",
@@ -40,7 +46,7 @@ parser.add_argument(
     "--algorithm",
     type=str,
     default="PPO",
-    choices=["PPO", "IPPO", "MAPPO"],
+    choices=["PPO", "SafePPO", "IPPO", "MAPPO"],
     help="The RL algorithm used for training the skrl agent.",
 )
 parser.add_argument(
@@ -68,9 +74,14 @@ import gymnasium as gym
 import os
 import random
 from datetime import datetime
+from pathlib import Path
 
 import skrl
 from packaging import version
+
+SOURCE_ROOT = Path(__file__).resolve().parents[1]
+if str(SOURCE_ROOT) not in sys.path:
+    sys.path.insert(0, str(SOURCE_ROOT))
 
 # check for minimum supported skrl version
 SKRL_VERSION = "1.3.0"
@@ -83,8 +94,10 @@ if version.parse(skrl.__version__) < version.parse(SKRL_VERSION):
 
 if args_cli.ml_framework.startswith("torch"):
     from skrl.utils.runner.torch import Runner
+    from safe_ppo_lagrangian.skrl import SafeSkrlRunner
 elif args_cli.ml_framework.startswith("jax"):
     from skrl.utils.runner.jax import Runner
+    SafeSkrlRunner = None
 
 from omni.isaac.lab.envs import (
     DirectMARLEnv,
@@ -103,7 +116,23 @@ from omni.isaac.lab_tasks.utils.wrappers.skrl import SkrlVecEnvWrapper
 
 # config shortcuts
 algorithm = args_cli.algorithm.lower()
-agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"skrl_{algorithm}_cfg_entry_point"
+if args_cli.cfg_entry_point is not None:
+    agent_cfg_entry_point = args_cli.cfg_entry_point
+elif algorithm == "ppo":
+    agent_cfg_entry_point = "skrl_cfg_entry_point"
+elif algorithm == "safeppo":
+    agent_cfg_entry_point = "safe_skrl_cfg_entry_point"
+else:
+    agent_cfg_entry_point = f"skrl_{algorithm}_cfg_entry_point"
+
+
+def _apply_env_cfg_overrides(env_cfg, agent_cfg: dict) -> None:
+    cfg_overrides = agent_cfg.get("env", {}).get("cfg_overrides", {})
+    for key, value in cfg_overrides.items():
+        if not hasattr(env_cfg, key):
+            raise AttributeError(f"Environment config has no field '{key}' for cfg_overrides")
+        print(f"[INFO] Applying env cfg override: {key}={value}")
+        setattr(env_cfg, key, value)
 
 
 @hydra_task_config(args_cli.task, agent_cfg_entry_point)
@@ -132,6 +161,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # note: certain randomization occur in the environment initialization so we set the seed here
     agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
     env_cfg.seed = agent_cfg["seed"]
+    _apply_env_cfg_overrides(env_cfg, agent_cfg)
 
     # specify directory for logging experiments
     log_root_path = os.path.join("logs", "skrl", agent_cfg["agent"]["experiment"]["directory"])
@@ -171,7 +201,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
     # convert to single-agent instance if required by the RL algorithm
-    if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo"]:
+    if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo", "safeppo"]:
         env = multi_agent_to_single_agent(env)
 
     # wrap around environment for skrl
@@ -179,7 +209,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     # configure and instantiate the skrl runner
     # https://skrl.readthedocs.io/en/latest/api/utils/runner.html
-    runner = Runner(env, agent_cfg)
+    use_safe_ppo = algorithm == "safeppo" or agent_cfg["agent"]["class"].lower() == "safeppo"
+    if use_safe_ppo and SafeSkrlRunner is None:
+        raise ValueError("SafePPO is only implemented for the torch skrl backend.")
+    runner_cls = SafeSkrlRunner if use_safe_ppo else Runner
+    runner = runner_cls(env, agent_cfg)
 
     # run training
     runner.run()

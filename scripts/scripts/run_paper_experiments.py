@@ -25,7 +25,7 @@ class ExperimentCommand:
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate or execute the 3-seed paper training matrix for PPO and Dreamer."
+        description="Generate or execute the paper training matrix for PPO, PPO-Lagrangian, and Dreamer."
     )
     parser.add_argument("--execute", action="store_true", help="Run commands sequentially. Default only prints them.")
     parser.add_argument("--seeds", type=int, nargs="+", default=[0, 1], help="Training seeds.")
@@ -46,7 +46,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--skrl-max-iterations", type=int, default=1563, help="skrl PPO iterations.")
     parser.add_argument(
         "--only",
-        choices=["all", "state-rsl", "state-dreamer", "vision-skrl", "vision-dreamer"],
+        choices=[
+            "all",
+            "state-rsl",
+            "state-safe-ppo",
+            "state-dreamer",
+            "vision-skrl",
+            "vision-safe-ppo",
+            "vision-dreamer",
+        ],
         default="all",
         help="Limit the generated command group.",
     )
@@ -98,6 +106,61 @@ def _skrl_vision(seed: int, args: argparse.Namespace) -> ExperimentCommand:
             _repo_path("source", "skrl", "train.py"),
             "--task",
             "Isaac-Ur3-Blood-Pipe-Vision-Wrist-Direct-v0",
+            "--num_envs",
+            "4",
+            "--seed",
+            str(seed),
+            "--max_iterations",
+            str(args.skrl_max_iterations),
+            "--device",
+            args.device,
+            "--disable_fabric",
+            "--enable_cameras",
+            f"agent.agent.experiment.experiment_name=seed_{seed}_{args.run_label}",
+        ],
+    )
+
+
+def _safe_rsl_state(seed: int, args: argparse.Namespace) -> ExperimentCommand:
+    return ExperimentCommand(
+        name="state-safe-ppo",
+        seed=seed,
+        argv=[
+            str(args.isaac_python),
+            _repo_path("scripts", "rsl_rl", "train.py"),
+            "--task",
+            "Isaac-Ur3-Blood-Pipe-State-Direct-v0",
+            "--cfg_entry_point",
+            "safe_rsl_rl_cfg_entry_point",
+            "--num_envs",
+            "4",
+            "--seed",
+            str(seed),
+            "--max_iterations",
+            str(args.rsl_max_iterations),
+            "--run_name",
+            f"seed_{seed}_{args.run_label}",
+            "--device",
+            args.device,
+            "--disable_fabric",
+            "--enable_cameras",
+        ],
+    )
+
+
+def _safe_skrl_vision(seed: int, args: argparse.Namespace) -> ExperimentCommand:
+    return ExperimentCommand(
+        name="vision-safe-ppo",
+        seed=seed,
+        argv=[
+            str(args.isaac_python),
+            _repo_path("source", "skrl", "train.py"),
+            "--task",
+            "Isaac-Ur3-Blood-Pipe-Vision-Wrist-Direct-v0",
+            "--cfg_entry_point",
+            "safe_skrl_cfg_entry_point",
+            "--algorithm",
+            "SafePPO",
             "--num_envs",
             "4",
             "--seed",
@@ -181,8 +244,10 @@ def _dreamer_vision(seed: int, args: argparse.Namespace) -> ExperimentCommand:
 def _commands(args: argparse.Namespace) -> list[ExperimentCommand]:
     builders = {
         "state-rsl": _rsl_state,
+        "state-safe-ppo": _safe_rsl_state,
         "state-dreamer": _dreamer_state,
         "vision-skrl": _skrl_vision,
+        "vision-safe-ppo": _safe_skrl_vision,
         "vision-dreamer": _dreamer_vision,
     }
     selected = builders if args.only == "all" else {args.only: builders[args.only]}

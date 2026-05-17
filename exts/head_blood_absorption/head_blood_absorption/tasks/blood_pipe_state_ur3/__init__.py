@@ -21,6 +21,9 @@ gym.register(
         "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
         "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:Ur3BloodPipeAbsorptionPPORunnerCfg",
+        "safe_rsl_rl_cfg_entry_point": (
+            f"{agents.__name__}.safe_rsl_rl_ppo_cfg:SafeUr3BloodPipeAbsorptionPPORunnerCfg"
+        ),
         "dreamer_cfg_entry_point": f"{agents.__name__}:dreamer_cfg.yaml",
         "r2dreamer_cfg_entry_point": f"{agents.__name__}:r2dreamer_cfg.yaml",
         "safe_dreamer_cfg_entry_point": f"{agents.__name__}:safe_dreamer_cfg.yaml",
