@@ -190,6 +190,15 @@ def _extract_metric(log_data: dict, key: str, default: float = float("nan")) -> 
     return default if value is None else value
 
 
+def _apply_env_cfg_overrides(env_cfg, overrides) -> None:
+    if not overrides:
+        return
+    for name, value in overrides.items():
+        if not hasattr(env_cfg, name):
+            raise AttributeError(f"Environment config has no field '{name}' for env.cfg_overrides.")
+        setattr(env_cfg, name, value)
+
+
 def _termination_flags(log_data: dict) -> dict[str, bool]:
     success = _extract_metric(log_data, "Episode_Termination/success", 0.0) > 0.5
     severe_collision = _extract_metric(log_data, "Episode_Termination/severe_collision", 0.0) > 0.5
@@ -331,6 +340,7 @@ def main() -> None:
     )
     if args_cli.seed is not None:
         env_cfg.seed = args_cli.seed
+    _apply_env_cfg_overrides(env_cfg, getattr(config.env, "cfg_overrides", {}))
 
     env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
     if args_cli.video:
