@@ -35,8 +35,8 @@ COLORS = {
 }
 
 ALGORITHM_LABELS = {
-    "Dreamer": "基线 Dreamer",
-    "Safe-Dreamer": "安全 Dreamer",
+    "Dreamer": "Dreamer V3",
+    "Safe-Dreamer": "Risk Dreamer",
 }
 
 

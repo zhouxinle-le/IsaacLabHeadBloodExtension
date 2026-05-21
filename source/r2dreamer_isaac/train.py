@@ -138,6 +138,7 @@ def main() -> None:
         num_envs=int(config.env.num_envs),
         use_fabric=not args_cli.disable_fabric,
     )
+    # train_env_cfg.seed = int(config.seed)
     _apply_env_cfg_overrides(train_env_cfg, getattr(config.env, "cfg_overrides", {}))
     _dump_config(logdir, config, train_env_cfg)
 
