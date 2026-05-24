@@ -34,14 +34,14 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--device", type=str, default="cpu", help="Isaac simulation device.")
     parser.add_argument("--env-device", type=str, default="cpu", help="Dreamer Isaac environment device.")
     parser.add_argument("--agent-device", type=str, default="cuda:0", help="Dreamer learner device.")
-    parser.add_argument("--run-label", type=str, default="2_800k", help="Suffix used in run names and logdirs.")
+    parser.add_argument("--run-label", type=str, default="800k", help="Suffix used in run names and logdirs.")
     parser.add_argument(
         "--dreamer-run-stamp",
         type=str,
         default=None,
         help="Timestamp/run id prepended to Dreamer logdirs. Defaults to current time.",
     )
-    parser.add_argument("--dreamer-total-steps", type=int, default=800_000, help="Dreamer true env steps.")
+    parser.add_argument("--dreamer-total-steps", type=int, default=510_000, help="Dreamer true env steps.")
     parser.add_argument("--rsl-max-iterations", type=int, default=6250, help="RSL-RL PPO iterations.")
     parser.add_argument("--skrl-max-iterations", type=int, default=1563, help="skrl PPO iterations.")
     parser.add_argument(
@@ -68,8 +68,11 @@ def _repo_path(*parts: str) -> str:
     return str(REPO_ROOT.joinpath(*parts))
 
 
+# def _dreamer_run_name(seed: int, args: argparse.Namespace) -> str:
+#     return f"{args.dreamer_run_stamp}_seed_{seed}_{args.run_label}"
+
 def _dreamer_run_name(seed: int, args: argparse.Namespace) -> str:
-    return f"{args.dreamer_run_stamp}_seed_{seed}_{args.run_label}"
+    return f"{args.dreamer_run_stamp}"
 
 
 def _rsl_state(seed: int, args: argparse.Namespace) -> ExperimentCommand:
@@ -196,7 +199,7 @@ def _dreamer_state(seed: int, args: argparse.Namespace) -> ExperimentCommand:
             "--agent_device",
             args.agent_device,
             "--num_envs",
-            "4",
+            "5",
             "--disable_fabric",
             "--enable_cameras",
             "--logdir",
@@ -226,7 +229,7 @@ def _dreamer_vision(seed: int, args: argparse.Namespace) -> ExperimentCommand:
             "--agent_device",
             args.agent_device,
             "--num_envs",
-            "1",
+            "2",
             "--disable_fabric",
             "--enable_cameras",
             "--logdir",
