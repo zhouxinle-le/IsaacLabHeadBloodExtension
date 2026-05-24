@@ -21,17 +21,20 @@ FIGURE_DPI = 300
 GRID_COLOR = "#E3E3E3"
 
 DEFAULT_STATE_RUNS = (
-    Path("logs/rsl_rl/ur3_blood_pipe_state_direct/2026-05-08_21-19-37_seed_0_800k"),
-    Path("logs/rsl_rl/ur3_blood_pipe_state_direct/2026-05-09_09-49-21_seed_1_800k"),
+    Path("logs/rsl_rl/ur3_blood_pipe_state_direct/2026-05-16_19-46-19_seed_0_800k"),
+    Path("logs/rsl_rl/ur3_blood_pipe_state_direct/2026-05-21_22-25-12_seed_1_800k"),
+    Path("logs/rsl_rl/ur3_blood_pipe_state_direct/2026-05-22_04-47-34_seed_2_800k"),
 )
+
 DEFAULT_VISION_RUNS = (
     Path("logs/skrl/ur3_blood_pipe_vision_direct_wrist/2026-05-10_21-23-12_ppo_torch_seed_0_800k"),
     Path("logs/skrl/ur3_blood_pipe_vision_direct_wrist/2026-05-11_05-10-37_ppo_torch_seed_1_800k"),
+    Path("logs/skrl/ur3_blood_pipe_vision_direct_wrist/2026-05-22_12-09-15_ppo_torch_seed_2_800k"),
 )
 
 GROUP_LABELS = {
     "state": "State PPO (RSL-RL)",
-    "vision": "Vision Wrist PPO (skrl)",
+    "vision": "Vision PPO (skrl)",
 }
 GROUP_COLORS = {
     "state": "#26A7E1",
